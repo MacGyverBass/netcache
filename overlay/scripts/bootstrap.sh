@@ -25,21 +25,21 @@ echo_msg () { # echo_msg "Text to display" "Type of message (info/warning/error)
  Level="$2" # Level (info/warning/error)
  if [ "${NO_COLORS,,}" == "true" ];then
   echo ${EchoArg} "${Text}"
-  return
- fi
- if [ "${Level}" == "info" ];then
-  echo -en "\e[32m" # 32=Green
- elif [ "${Level}" == "warning" ];then
-  echo -en "\e[33m" # 33=Yellow
- elif [ "${Level}" == "error" ];then
-  echo -en "\e[31m" # 31=Red
  else
-  echo -en "\e[36m" # 36=Cyan
+   if [ "${Level}" == "info" ];then
+  echo -en "\e[32m" # 32=Green
+   elif [ "${Level}" == "warning" ];then
+  echo -en "\e[33m" # 33=Yellow
+  elif [ "${Level}" == "error" ];then
+   echo -en "\e[31m" # 31=Red
+  else
+   echo -en "\e[36m" # 36=Cyan
+  fi
+  echo ${EchoArg} "${Text}"
+  echo -en "\e[0m"
  fi
- echo ${EchoArg} "${Text}"
- echo -en "\e[0m"
 }
-fnTailLog () { # fnTailLog "Prefix text" "File to log in background"
+fnTailLog () { # fnTailLog "Prefix text" "File to log in background" [ "Regular Expression" "Replacement String" ... ]
  Prefix="$1" # String to prefix on each line
  LogFile="$2" # File to log (in background)
  PrefixColor="\e[1m"
@@ -47,7 +47,14 @@ fnTailLog () { # fnTailLog "Prefix text" "File to log in background"
  if [ "${NO_COLORS,,}" == "true" ];then
   tail -f "${LogFile}" |awk "{print \"${Prefix}: \" \$0}" &
  else
-  tail -f "${LogFile}" |awk "{print \"${PrefixColor}${Prefix}: ${ResetColor}\" \$0}" &
+  AwkScript="gsub(/^/, \"${PrefixColor}${Prefix}: ${ResetColor}\");"
+  while [ $# -ge 4 ];do # Check for a RegExp and String pair
+   RegExp="$3" # Regular Expression
+   Replacement="${4//\"/\\\"}" # Replacement String
+   AwkScript="${AwkScript} gsub(${RegExp},\"${Replacement}\");"
+   shift 2 # Shift the arguments by two before checking for another pair.
+  done
+  tail -f "${LogFile}" |awk "{${AwkScript} print}" &
  fi
 }
 fnSplitStrings () { # Removes comments, splits into lines from comma/space delimited strings, and removes any blank lines.
@@ -330,7 +337,7 @@ if [ "${DISABLE_DNS_SERVER}" != "true" ];then
   # Display logs and Execute Bind
   echo_msg "* Running Bind9 w/logging" "info"
   fnTailLog "named/general" /data/logs/named/general.log
-  fnTailLog "named/queries" /data/logs/named/queries.log
+  fnTailLog "named/queries" /data/logs/named/queries.log "/ ([0-9]{1,3}\.){3}[0-9]{1,3}#/" "\e[95m&\e[0m" "/#\e\[0m/" "\e[0m#"
   /usr/sbin/named -u named -c /etc/bind/named.conf
  fi
 fi
@@ -338,7 +345,7 @@ fi
 if [ "${DISABLE_HTTPS_PROXY}" != "true" ];then
  # Display logs and Execute SNI Proxy
  echo_msg "* Running SNI Proxy w/logging" "info"
- fnTailLog "sniproxy" /data/logs/sniproxy.log
+ fnTailLog "sniproxy" /data/logs/sniproxy.log "/ ([0-9]{1,3}\.){3}[0-9]{1,3}/" "\e[95m&\e[0m" "/:[0-9]* ->\e\[95m/" "&\e[0m" "/\e\[95m\e\[0m/" "" "/:443 -> ([0-9]{1,3}\.){3}[0-9]{1,3}/" "\e[96m&\e[0m" "/\e\[96m:443 ->/" ":443 ->\e[96m"
  fnTailLog "sniproxy_error" /data/logs/sniproxy_error.log
  /usr/sbin/sniproxy -c /etc/sniproxy/sniproxy.conf
 fi
@@ -355,7 +362,7 @@ if [ "${DISABLE_HTTP_CACHE}" != "true" ];then
  else
   # Display logs and Execute Nginx
   echo_msg "* Running NGinx w/logging" "info"
-  fnTailLog "cache" /data/logs/cache.log
+  fnTailLog "cache" /data/logs/cache.log "/ ([0-9]{1,3}\.){3}[0-9]{1,3} /" "\e[95m&\e[0m" '/"MISS"/' '"\e[93mMISS\e[0m"' '/"HIT"/' '"\e[92mHIT\e[0m"'
   fnTailLog "cache_error" /data/logs/cache_error.log
   /usr/sbin/nginx -c /etc/nginx/nginx.conf
  fi
