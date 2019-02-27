@@ -1,0 +1,366 @@
+#!/bin/bash
+set -e
+if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[96m";fi # Colorize the banner (96=Light Cyan)
+cat << 'BANNER'
+
+_____   __    ______________            ______
+___  | / /______  /__  ____/_____ _________  /______
+__   |/ /_  _ \  __/  /    _  __ `/  ___/_  __ \  _ \
+_  /|  / /  __/ /_ / /___  / /_/ // /__ _  / / /  __/
+/_/ |_/  \___/\__/ \____/  \__,_/ \___/ /_/ /_/\___/
+
+BANNER
+if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
+
+
+############################################################
+# Helpful Functions
+echo_msg () { # echo_msg "Text to display" "Type of message (info/warning/error)"
+ EchoArg=""
+ if [[ "$1" == "-"* ]];then # Check for any echo-related arguments to pass to the echo in this function.
+  EchoArg="$1"
+  shift
+ fi
+ Text="$1" # String
+ Level="$2" # Level (info/warning/error)
+ if [ "${NO_COLORS,,}" == "true" ];then
+  echo ${EchoArg} "${Text}"
+  return
+ fi
+ if [ "${Level}" == "info" ];then
+  echo -en "\e[32m" # 32=Green
+ elif [ "${Level}" == "warning" ];then
+  echo -en "\e[33m" # 33=Yellow
+ elif [ "${Level}" == "error" ];then
+  echo -en "\e[31m" # 31=Red
+ else
+  echo -en "\e[36m" # 36=Cyan
+ fi
+ echo ${EchoArg} "${Text}"
+ echo -en "\e[0m"
+}
+fnTailLog () { # fnTailLog "Prefix text" "File to log in background"
+ Prefix="$1" # String to prefix on each line
+ LogFile="$2" # File to log (in background)
+ PrefixColor="\e[1m"
+ ResetColor="\e[0m"
+ if [ "${NO_COLORS,,}" == "true" ];then
+  tail -f "${LogFile}" |awk "{print \"${Prefix}: \" \$0}" &
+ else
+  tail -f "${LogFile}" |awk "{print \"${PrefixColor}${Prefix}: ${ResetColor}\" \$0}" &
+ fi
+}
+fnSplitStrings () { # Removes comments, splits into lines from comma/space delimited strings, and removes any blank lines.
+ echo "$1" |sed "s/[, ]*#.*$//;s/[, ]/\n/g" |sed "/^$/d"
+}
+fnTerminate () { # Executes when CTRL+C is pressed in an interactive terminal (-it) or when SIGTERM is received when running as a daemon process
+ echo
+ echo_msg "* Exiting..." "info"
+ if [ -e "/run/named/named.pid" ];then
+  echo_msg "+ Stopping bind..."
+  kill -QUIT "$(cat "/run/named/named.pid")" && rm "/run/named/named.pid"
+ fi
+ if [ -e "/run/sniproxy/sniproxy.pid" ];then
+  echo_msg "+ Stopping sniproxy..."
+  kill -QUIT "$(cat "/run/sniproxy/sniproxy.pid")" && rm "/run/sniproxy/sniproxy.pid"
+ fi
+ if [ -e "/run/nginx.pid" ];then
+  echo_msg "+ Stopping nginx..."
+  /usr/sbin/nginx -c /etc/nginx/nginx.conf -s quit # Graceful Shutdown
+ fi
+ echo_msg "* Finished." "info"
+}
+trap 'fnTerminate' SIGINT  # CTRL+C
+trap 'fnTerminate' SIGTERM # docker stop
+
+############################################################
+# Start by verifying that UPSTREAM_DNS is provided.
+if [ -z "${UPSTREAM_DNS}" ];then
+ echo_msg "# UPSTREAM_DNS environment variable is not set.  This is required to be set." "error"
+ exit 1
+fi
+
+# Create destination paths before generating configuration files
+mkdir -p /data/logs/named /data/cache
+chown named:named /data/logs/named
+chown nginx:nginx /data/cache
+
+# Clear logs if requested
+if [ "${CLEAR_LOGS}" == "true" ];then
+ echo_msg "* Clearing previous log files"
+ rm -f /data/logs/*.log /data/logs/named/*.log
+fi
+
+# Create empty cache.conf file and create nginx/sniproxy log files if they don't yet exist.
+touch /etc/bind/cache.conf /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
+
+
+# Setup DNS Entries
+DNS_List="$(fnSplitStrings "${UPSTREAM_DNS}")"
+echo "${DNS_List}" |sed "s/^/+ Adding nameserver: /"
+DNS_String="$(fnSplitStrings "${UPSTREAM_DNS}" |paste -sd ' ' - )" # Space delimited DNS IPs for sniproxy.conf and resolver.conf and named.conf.options
+## Setup /etc/resolv.conf
+echo "${DNS_List}" |sed "s/^/nameserver /" > /etc/resolv.conf
+## Setup nginx resolver.conf
+echo "  resolver ${DNS_String} ipv6=off;" > /etc/nginx/sites-available/conf.d/resolver.conf
+## Setup /etc/sniproxy/sniproxy.conf
+sed -i "s/\${DNS_NAMESERVERS}/${DNS_String}/Ig" /etc/sniproxy/sniproxy.conf
+## Setup /etc/bind/named.conf.options
+DNSSEC_Validation="no"
+if [ "${ENABLE_DNSSEC_VALIDATION,,}" == "true" ];then
+ echo_msg "* Enabling DNSSEC Validation (dnssec-validation=auto)"
+ DNSSEC_Validation="auto"
+elif [ "${ENABLE_DNSSEC_VALIDATION,,}" == "enforce" ];then
+ echo_msg "* Enabling DNSSEC Validation (dnssec-validation=yes)"
+ DNSSEC_Validation="yes"
+fi
+sed -i "s/\${DNS_NAMESERVERS}/${DNS_String// /;}/Ig;s/\${DNSSEC_VALIDATION}/${DNSSEC_Validation}/Ig" /etc/bind/named.conf.options
+
+
+# Setup Bind
+## Generate /etc/bind/named.conf.logging
+Logging_Channels="default general database security config resolver xfer-in xfer-out notify client unmatched queries network update dispatch dnssec lame-servers"
+echo "logging {" > /etc/bind/named.conf.logging
+for channel_type in ${Logging_Channels};do
+ cat << SECTION >> /etc/bind/named.conf.logging
+    channel ${channel_type}_file {
+        file "/data/logs/named/${channel_type}.log" versions 3 size 5m;
+        severity dynamic;
+        print-time yes;
+    };
+    category ${channel_type} {
+        ${channel_type}_file;
+    };
+SECTION
+ touch "/data/logs/named/${channel_type}.log" && chown named:named "/data/logs/named/${channel_type}.log"
+done
+echo "};" >>  /etc/bind/named.conf.logging
+
+
+# Setup NGinx
+## Setup /etc/nginx/workers.conf 
+echo "worker_processes ${NGINX_WORKER_PROCESSES};" > /etc/nginx/workers.conf
+## Setup /etc/nginx/sites-available/root.d/20_cache.conf
+sed -i "s/\${CACHE_MAX_AGE}/${CACHE_MAX_AGE}/g" /etc/nginx/sites-available/root.d/20_cache.conf
+
+
+############################################################
+# Functions that generate the configuration files
+addServiceComment () { # addServiceComment "Service Name" "Comment String"
+ ServiceName="$1" # Name of the given service.
+ Comment="$2" # String
+ Bind_Conf_File="/etc/bind/cache.conf"
+ Maps_Conf_File="/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+ Path_Conf_File="/etc/nginx/conf.d/proxy_cache_path.d/${ServiceName}.conf"
+ Site_Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
+ if [ "${ServiceName}" == "_default_" ];then # Default service for unmatched domains
+  Site_Conf_File="/etc/nginx/conf.d/default.conf"
+ fi
+ # Append the comment(s) to each generated configuration file.
+ echo "${Comment}" |sed "s/^/# /" |tee -a "${Bind_Conf_File}" "${Maps_Conf_File}" "${Path_Conf_File}" "${Site_Conf_File}" >/dev/null
+}
+addService () { # addService "Service Name" "Service-IP" "Domains"
+ ServiceName="$1" # Name of the given service.
+ ServiceIP="$2" # String containing the destination IP to be given back to the client PC. 
+ Domains="$3" # String containing domain name entries, comma/space delimited.
+
+ if [ -z "${ServiceName}" ]||[ -z "${ServiceIP}" ]||[ -z "${Domains}" ];then # All fields are required.
+  echo_msg "# Error adding service \"${ServiceName}\".  All arguments are required." "warning"
+  return
+ fi
+ echo "+ Adding service \"${ServiceName}\".  Will resolve to: ${ServiceIP}"
+
+ Listen_Options=""
+ if [ "${ServiceName}" == "_default_" ];then # Default service for unmatched domains
+  Conf_File="/etc/nginx/conf.d/default.conf"
+  Server_Names="# Matches all unmatched domains"
+
+  # Add "default_server" to the listen directive
+  Listen_Options="default_server reuseport"
+ else
+  Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
+  Domain_Names="$(fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^/\./" |sort -u |paste -sd ' ' - )" # Space delimited domain names
+  Server_Names="server_name ${Domain_Names};"
+
+  # Bind zones
+  fnSplitStrings "${Domains}" |sed "s/^\*\.//" |sort -u |while read domain;do
+   cat << EOF >> "/etc/bind/cache.conf"
+zone "${domain}" in { type master; file "/etc/bind/cache/${ServiceName}.db";};
+EOF
+  done
+
+  # Bind Start of Authority Resource Record (SOA RR)
+  SOA_Serial=`date +%Y%m%d%H` #yyyymmddHH (year,month,day,hour)
+  sed "s/\${SOA_Serial}/${SOA_Serial}/Ig;s/\${ServiceIP}/${ServiceIP}/Ig" /etc/bind/cache/soa_rr.db.template > "/etc/bind/cache/${ServiceName}.db"
+
+  # Nginx service maps
+  fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^.*$/    \.\0 ${ServiceName};/" |sort -u >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+ fi
+
+ # Nginx ${ServiceName}.conf
+ cat << EOF >> "${Conf_File}"
+server {
+  listen 80 ${Listen_Options};
+  ${Server_Names}
+
+  access_log /data/logs/cache.log cachelog;
+  error_log /data/logs/cache_error.log;
+
+  include /etc/nginx/sites-available/conf.d/resolver.conf;
+
+  # Cache Location
+  proxy_cache ${ServiceName};
+
+  location / {
+    include /etc/nginx/sites-available/root.d/*.conf;
+  }
+
+  include /etc/nginx/sites-available/conf.d/fix_lol_updater.conf;
+}
+EOF
+
+ # Setup and create the service-specific cache directory
+ Service_Cache_Path="/data/cache/${ServiceName}"
+ mkdir -p "${Service_Cache_Path}"
+
+ # Nginx proxy_cache_path entries
+ cat << EOF >> "/etc/nginx/conf.d/proxy_cache_path.d/${ServiceName}.conf"
+proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CACHE_MEM_SIZE} inactive=${INACTIVE_TIME} ${CACHE_DISK_SIZE:+"max_size=${CACHE_DISK_SIZE}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
+EOF
+}
+
+
+############################################################
+# Add a fallback default cache service in case a domain entry does not match
+if [ -z "${LANCACHE_IP}" ];then
+ echo_msg "# LANCACHE_IP not provided.  Fallback default cache service not added." "warning"
+else
+ addServiceComment "_default_" "Fallback default cache service"
+ addService "_default_" "${LANCACHE_IP}" "*"
+fi
+
+
+# UK-LANs Cache-Domain Lists
+if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
+ if [ ! -d "/data/cache-domains/.git" ];then
+  echo_msg "* Cloning repository from ${CACHE_DOMAINS_REPO}"
+  git clone "${CACHE_DOMAINS_REPO}" "/data/cache-domains" # Download repo
+ else
+  echo_msg "* Updating repository from ${CACHE_DOMAINS_REPO}"
+  git -C "/data/cache-domains" fetch # Update repo
+  git -C "/data/cache-domains" reset --hard # Reset any files that were changed locally
+  git -C "/data/cache-domains" clean -df # Remove any untracked files
+ fi
+ jq -c '.cache_domains[]' "/data/cache-domains/cache_domains.json" |while read obj;do
+  Service_Name=`echo "${obj}"|jq -r '.name'`
+  Service_Desc=`echo "${obj}"|jq -r '.description'`
+  if [ -z "${ONLYCACHE}" ];then # "ONLYCACHE" variable is not provided, so check for "DISABLE_${SERVICE}" variable and store it's value.
+   Disabled="DISABLE_${Service_Name^^}"; Disabled="${!Disabled}"
+  elif [[ " ${ONLYCACHE^^} " == *" ${Service_Name^^} "* ]];then # "ONLYCACHE" contains this service.
+   Disabled="false"
+  else # "ONLYCACHE" is not blank and this service was not found within the "ONLYCACHE" variable.
+   Disabled="true"
+  fi
+  if [ "${Disabled,,}" != "true" ];then
+   Cache_IP="${Service_Name^^}CACHE_IP"; Cache_IP="${!Cache_IP}"; Cache_IP="${Cache_IP:-"${LANCACHE_IP}"}"
+   if [ -z "${Cache_IP}" ];then
+    echo_msg "# ${Service_Name^^}CACHE_IP not provided.  Service not added." "warning"
+   else
+    addServiceComment "${Service_Name}" "${Service_Name}"
+    if ! [ -z "${Service_Desc}" ];then
+     addServiceComment "${Service_Name}" "${Service_Desc}"
+    fi
+    echo "${obj}" |jq -r '.domain_files[]' |while read domain_file;do
+     addServiceComment "${Service_Name}" " (${domain_file})"
+     addService "${Service_Name}" "${Cache_IP}" "$(cat "/data/cache-domains/${domain_file}")"
+    done
+   fi
+  fi
+ done
+fi
+
+
+# Custom Domain Lists
+if [ ! -z "${CUSTOMCACHE}" ];then
+ echo_msg "* Adding custom services..."
+ for Service_Name in ${CUSTOMCACHE};do
+  Cache_IP="${Service_Name^^}CACHE_IP"; Cache_IP="${!Cache_IP}"; Cache_IP="${Cache_IP:-"${LANCACHE_IP}"}"
+  Cache_Domains="${Service_Name^^}CACHE"; Cache_Domains="${!Cache_Domains}"
+  if [ -z "${Cache_IP}" ]&&[ -z "${Cache_Domains}" ];then
+   echo_msg "# ${Service_Name^^}CACHE_IP and ${Service_Name^^}CACHE not provided.  Service not added." "warning"
+  elif [ -z "${Cache_IP}" ];then
+   echo_msg "# ${Service_Name^^}CACHE_IP not provided.  Service not added." "warning"
+  elif [ -z "${Cache_Domains}" ];then
+   echo_msg "# ${Service_Name^^}CACHE not provided.  Service not added." "warning"
+  else
+   addServiceComment "${Service_Name}" "${Service_Name}"
+   addService "${Service_Name}" "${Cache_IP}" "${Cache_Domains}"
+  fi
+ done
+fi
+
+
+############################################################
+# Notify if the user selected to disable all programs
+if [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_HTTPS_PROXY,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER}" == "true" ];then
+ echo_msg "* Nothing to run.  Please check your variables provided. (DISABLE_HTTP_CACHE, DISABLE_HTTPS_PROXY, DISABLE_DNS_SERVER)" "warning"
+fi
+
+# Enable all Nginx configurations found in sites-available...
+mkdir -p /etc/nginx/sites-enabled
+if [ "$(ls /etc/nginx/sites-available/*.conf 2>/dev/null |wc -l)" != "0" ];then # Check for files in /etc/nginx/sites-available
+ # Copy found sites-available as symbolic links to sites-enabled
+ cp -s /etc/nginx/sites-available/*.conf /etc/nginx/sites-enabled/
+elif [ ! -e /etc/nginx/conf.d/default.conf ];then # Check for fallback default cache service
+ # There are no configuration files found in /etc/nginx/sites-available and no default configuration found at /etc/nginx/conf.d/default.conf
+ echo_msg "# No services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
+ echo_msg "# Note that at a minimum, LANCACHE_IP=\"IP Address\" is required.  Check the documentation for more information." "error"
+ exit 1
+fi
+
+
+# Startup programs w/logging
+## Bind
+if [ "${DISABLE_DNS_SERVER}" != "true" ];then
+ # Test the Bind configuration
+ echo_msg "* Checking Bind9 configuration"
+ if ! /usr/sbin/named-checkconf /etc/bind/named.conf ;then
+  echo_msg "# Problem with Bind9 configuration" "error"
+ else
+  # Display logs and Execute Bind
+  echo_msg "* Running Bind9 w/logging" "info"
+  fnTailLog "named/general" /data/logs/named/general.log
+  fnTailLog "named/queries" /data/logs/named/queries.log
+  /usr/sbin/named -u named -c /etc/bind/named.conf
+ fi
+fi
+## SNI Proxy
+if [ "${DISABLE_HTTPS_PROXY}" != "true" ];then
+ # Display logs and Execute SNI Proxy
+ echo_msg "* Running SNI Proxy w/logging" "info"
+ fnTailLog "sniproxy" /data/logs/sniproxy.log
+ fnTailLog "sniproxy_error" /data/logs/sniproxy_error.log
+ /usr/sbin/sniproxy -c /etc/sniproxy/sniproxy.conf
+fi
+## Nginx
+if [ "${DISABLE_HTTP_CACHE}" != "true" ];then
+ # Check permissions on /data folder...
+ echo_msg -n "* Checking permissions (This may take a long time if the permissions are incorrect on large caches)..."
+ find /data/cache \! -user nginx -exec chown nginx:nginx '{}' +
+ echo_msg "  Done." "info"
+ # Test the nginx configuration...
+ echo_msg "* Checking nginx configuration"
+ if ! /usr/sbin/nginx -t -c /etc/nginx/nginx.conf ;then
+  echo_msg "# Problem with nginx configuration" "error"
+ else
+  # Display logs and Execute Nginx
+  echo_msg "* Running NGinx w/logging" "info"
+  fnTailLog "cache" /data/logs/cache.log
+  fnTailLog "cache_error" /data/logs/cache_error.log
+  /usr/sbin/nginx -c /etc/nginx/nginx.conf
+ fi
+fi
+
+# Wait for this process to receive a signal. (SIGINT/SIGTERM)
+wait $!
+
