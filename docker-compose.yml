@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  netcache:
+    environment:
+      LANCACHE_IP: "${NETCACHE_IP}"
+      UPSTREAM_DNS: "1.1.1.1 1.0.0.1"
+    image: macgyverbass/netcache
+    ports:
+      - "${NETCACHE_IP}:53:53/tcp"
+      - "${NETCACHE_IP}:53:53/udp"
+      - "${NETCACHE_IP}:80:80/tcp"
+      - "${NETCACHE_IP}:443:443/tcp"
+    restart: always
+    volumes:
+      - "data:/data"
+
+volumes:
+  data:
