@@ -193,7 +193,7 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   Listen_Options="default_server reuseport"
  else
   Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
-  Domain_Names="$(fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^/\./" |sort -u |paste -sd ' ' - )" # Space delimited domain names
+  Domain_Names="$(fnSplitStrings "${Domains}" |paste -sd ' ' - )" # Space delimited domain names
   Server_Names="server_name ${Domain_Names};"
 
   # Bind CNAME(s)
@@ -204,7 +204,7 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   done
 
   # Nginx service maps
-  fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^.*$/    \.\0 ${ServiceName};/" |sort -u >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+  fnSplitStrings "${Domains}" |sed "s/^.*$/    \0 ${ServiceName};/" >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
  fi
 
  # Nginx ${ServiceName}.conf
