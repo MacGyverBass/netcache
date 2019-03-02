@@ -238,6 +238,31 @@ If you are a games publisher and you like LAN parties, gaming centers and other 
 
 If you need any further advice, please contact [uklans.net](https://www.uklans.net/) for help.
 
+## Tuning Your Cache
+
+Steam in particular has some inherent limitations caused by the adherence to the HTTP spec connection pool. As such, Steam download speeds are highly dependent on the latency between your server and the Steam CDN servers.  In the event you find your initial download speed with the default settings is slow, this can be resolved by allocating more IP addresses to your cache.  We suggest adding one IP at a time to see how much gain can be had (4 seems to work for a number of people).
+
+### Step 1: Adding IP Addresses to Your Docker Host
+
+Consult your OS documentation in order to add additional IP addresses onto your docker cache host machine.
+
+### Step 2: Adding IP Addresses to Your Cache Container
+
+In order for this to work you need to add the port maps to your docker run command.
+
+- Using `-p 80:80 -p 443:443` should be sufficient as per the documentation.  Do note that this will bind to all available IP addresses on your host OS.
+- You may also bind just the specific IP addresses accordingly by using multiple publish commands.  For example, you may use `-p 10.10.1.11:80:80 -p 10.10.1.11:443:443 -p 10.10.1.12:80:80 -p 10.10.1.12:443:443` to your docker run command.
+
+### Step 3: Informing netcache of the Extra IP Addresses
+
+Finally we need to inform netcache that these services are now available on multiple IP addresses.  This can be done on the command line using the following command `-e LANCACHE_IP="10.10.1.11 10.10.1.12"`.  Note the quotes surrounding the multiple IP addresses.
+
+If you are using alternate IP addresses for specific services, such as in a multi-server setup, you can use the `${Service}CACHE_IP` specific entries for this as well.  For example, if you run your Steam cache on 10.10.1.21 and added 10.10.1.22 to that machine, you can use `-e STEAMCACHE_IP="10.10.1.21 10.10.1.22"` in your docker run command.
+
+### Step 4: Testing
+
+Using Steam as an example, choose a game which has not been seen by the cache before (or clear your `/data/cache` folder) and start it downloading.  Check to see what the maximum speed seen by your Steam client is.  If necessary repeat steps 1-3 with additional IPs until you see a download equivalent to your uncached Steam client or no longer see an improvement vs the previous IP allocation.
+
 ## Special Usage
 
 This Docker service will cache all CDN services (defined in the [uklans cache-domains repo](https://github.com/uklans/cache-domains) so multiple instances are not required.  However, you can execute multiple instances of this Docker container to function as independent services.
