@@ -98,8 +98,8 @@ if [ "${CLEAR_LOGS}" == "true" ];then
  rm -f /data/logs/*.log /data/logs/named/*.log
 fi
 
-# Create empty cache.conf file and create nginx/sniproxy log files if they don't yet exist.
-touch /etc/bind/cache.conf /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
+# Create nginx/sniproxy log files if they don't yet exist.
+touch /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
 
 
 # Setup DNS Entries
@@ -150,13 +150,19 @@ echo "worker_processes ${NGINX_WORKER_PROCESSES};" > /etc/nginx/workers.conf
 ## Setup /etc/nginx/sites-available/root.d/20_cache.conf
 sed -i "s/\${CACHE_MAX_AGE}/${CACHE_MAX_AGE}/g" /etc/nginx/sites-available/root.d/20_cache.conf
 
+# Setup Bind RPZ Zone and Start of Authority Resource Record (SOA RR)
+SOA_Serial=`date +%Y%m%d%H` #yyyymmddHH (year,month,day,hour)
+sed -i "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig;s/\${SOA_Serial}/${SOA_Serial}/Ig" /etc/bind/cache/cache.db
+sed -i "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig" /etc/bind/cache.conf
+
 
 ############################################################
 # Functions that generate the configuration files
 addServiceComment () { # addServiceComment "Service Name" "Comment String"
  ServiceName="$1" # Name of the given service.
  Comment="$2" # String
- Bind_Conf_File="/etc/bind/cache.conf"
+ Cache_DB_File="/etc/bind/cache/cache.db"
+ RPZ_DB_File="/etc/bind/cache/rpz.db"
  Maps_Conf_File="/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
  Path_Conf_File="/etc/nginx/conf.d/proxy_cache_path.d/${ServiceName}.conf"
  Site_Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
@@ -164,18 +170,19 @@ addServiceComment () { # addServiceComment "Service Name" "Comment String"
   Site_Conf_File="/etc/nginx/conf.d/default.conf"
  fi
  # Append the comment(s) to each generated configuration file.
- echo "${Comment}" |sed "s/^/# /" |tee -a "${Bind_Conf_File}" "${Maps_Conf_File}" "${Path_Conf_File}" "${Site_Conf_File}" >/dev/null
+ echo "${Comment}" |sed "s/^/; /" |tee -a "${Cache_DB_File}" "${RPZ_DB_File}" >/dev/null
+ echo "${Comment}" |sed "s/^/# /" |tee -a "${Maps_Conf_File}" "${Path_Conf_File}" "${Site_Conf_File}" >/dev/null
 }
 addService () { # addService "Service Name" "Service-IP" "Domains"
  ServiceName="$1" # Name of the given service.
- ServiceIP="$2" # String containing the destination IP to be given back to the client PC. 
+ ServiceIPs="$2" # String containing the destination IP to be given back to the client PC.
  Domains="$3" # String containing domain name entries, comma/space delimited.
 
- if [ -z "${ServiceName}" ]||[ -z "${ServiceIP}" ]||[ -z "${Domains}" ];then # All fields are required.
+ if [ -z "${ServiceName}" ]||[ -z "${ServiceIPs}" ]||[ -z "${Domains}" ];then # All fields are required.
   echo_msg "# Error adding service \"${ServiceName}\".  All arguments are required." "warning"
   return
  fi
- echo "+ Adding service \"${ServiceName}\".  Will resolve to: ${ServiceIP}"
+ echo "+ Adding service \"${ServiceName}\".  Will resolve to: ${ServiceIPs}"
 
  Listen_Options=""
  if [ "${ServiceName}" == "_default_" ];then # Default service for unmatched domains
@@ -186,22 +193,18 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   Listen_Options="default_server reuseport"
  else
   Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
-  Domain_Names="$(fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^/\./" |sort -u |paste -sd ' ' - )" # Space delimited domain names
+  Domain_Names="$(fnSplitStrings "${Domains}" |paste -sd ' ' - )" # Space delimited domain names
   Server_Names="server_name ${Domain_Names};"
 
-  # Bind zones
-  fnSplitStrings "${Domains}" |sed "s/^\*\.//" |sort -u |while read domain;do
-   cat << EOF >> "/etc/bind/cache.conf"
-zone "${domain}" in { type master; file "/etc/bind/cache/${ServiceName}.db";};
-EOF
+  # Bind CNAME(s)
+  fnSplitStrings "${Domains}" |sed "s/$/ IN CNAME ${ServiceName}.${RPZ_ZONE}.;/" >> /etc/bind/cache/rpz.db
+  # Bind IP(s)
+  fnSplitStrings "${ServiceIPs}" |while read ServiceIP;do
+   echo "${ServiceName} IN A ${ServiceIP};" >> /etc/bind/cache/cache.db
   done
 
-  # Bind Start of Authority Resource Record (SOA RR)
-  SOA_Serial=`date +%Y%m%d%H` #yyyymmddHH (year,month,day,hour)
-  sed "s/\${SOA_Serial}/${SOA_Serial}/Ig;s/\${ServiceIP}/${ServiceIP}/Ig" /etc/bind/cache/soa_rr.db.template > "/etc/bind/cache/${ServiceName}.db"
-
   # Nginx service maps
-  fnSplitStrings "${Domains}" |sed "s/^\*\.//;s/^.*$/    \.\0 ${ServiceName};/" |sort -u >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+  fnSplitStrings "${Domains}" |sed "s/^.*$/    \0 ${ServiceName};/" >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
  fi
 
  # Nginx ${ServiceName}.conf

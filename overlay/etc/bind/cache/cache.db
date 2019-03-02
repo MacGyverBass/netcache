@@ -1,14 +1,12 @@
+$ORIGIN	${RPZ_ZONE}.
 $TTL	600 ; 10m
-@	IN  SOA ns1 noreply.example.com. (
+@	IN  SOA localhost. noreply.example.com. (
 		${SOA_Serial} ; sn = serial number
 		604800 ; ref = refresh = 7d
 		600 ; ret = update retry = 10m
 		600 ; ex = expiry = 10m
 		600 ; nx = nxdomain ttl = 10m
 	)
-@	IN  NS  ns1
-ns1	IN  A   ${ServiceIP}
+@	IN  NS  localhost.
 
-@	IN  A   ${ServiceIP}
-*	IN  A   ${ServiceIP}
 
