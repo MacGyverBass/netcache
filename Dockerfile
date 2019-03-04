@@ -3,7 +3,7 @@ LABEL	maintainer="Steven Bass"
 
 ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	ENABLE_DNSSEC_VALIDATION="false"	\
-	NGINX_WORKER_PROCESSES="16"	\
+	NGINX_WORKER_PROCESSES="auto"	\
 	DISABLE_DNS_SERVER="false"	\
 	DISABLE_HTTP_CACHE="false"	\
 	DISABLE_HTTPS_PROXY="false"	\
@@ -11,7 +11,7 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	RPZ_ZONE="NetCache"	\
 	CACHE_MAX_AGE="3650d"	\
 	INACTIVE_TIME="365d"	\
-	CACHE_MEM_SIZE="500m"	\
+	CACHE_MEM_SIZE="250m"	\
 	CACHE_DISK_SIZE=""	\
 	NO_COLORS="false"	\
 	CLEAR_LOGS="false"	\
