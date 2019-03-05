@@ -101,6 +101,9 @@ fi
 # Create nginx/sniproxy log files if they don't yet exist.
 touch /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
 
+# Create empty 20_proxy_cache_path.conf file.
+touch /etc/nginx/conf.d/20_proxy_cache_path.conf
+
 
 # Setup DNS Entries
 DNS_List="$(fnSplitStrings "${UPSTREAM_DNS}")"
@@ -162,16 +165,21 @@ addServiceComment () { # addServiceComment "Service Name" "Comment String"
  ServiceName="$1" # Name of the given service.
  Comment="$2" # String
  Cache_DB_File="/etc/bind/cache/cache.db"
+ Path_Conf_File="/etc/nginx/conf.d/20_proxy_cache_path.conf"
  RPZ_DB_File="/etc/bind/cache/rpz.db"
  Maps_Conf_File="/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
- Path_Conf_File="/etc/nginx/conf.d/proxy_cache_path.d/${ServiceName}.conf"
- Site_Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
- if [ "${ServiceName}" == "_default_" ];then # Default service for unmatched domains
-  Site_Conf_File="/etc/nginx/conf.d/default.conf"
- fi
  # Append the comment(s) to each generated configuration file.
  echo "${Comment}" |sed "s/^/; /" |tee -a "${Cache_DB_File}" "${RPZ_DB_File}" >/dev/null
- echo "${Comment}" |sed "s/^/# /" |tee -a "${Maps_Conf_File}" "${Path_Conf_File}" "${Site_Conf_File}" >/dev/null
+ echo "${Comment}" |sed "s/^/# /" |tee -a "${Path_Conf_File}" "${Maps_Conf_File}" >/dev/null
+}
+addServiceSectionComment () { # addServiceSectionComment "Service Name" "Comment String"
+ ServiceName="$1" # Name of the given service.
+ Comment="$2" # String
+ RPZ_DB_File="/etc/bind/cache/rpz.db"
+ Maps_Conf_File="/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+ # Append the comment(s) to each generated configuration file.
+ echo "${Comment}" |sed "s/^/; /" >> "${RPZ_DB_File}"
+ echo "${Comment}" |sed "s/^/# /" >> "${Maps_Conf_File}"
 }
 addService () { # addService "Service Name" "Service-IP" "Domains"
  ServiceName="$1" # Name of the given service.
@@ -184,18 +192,7 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
  fi
  echo "+ Adding service \"${ServiceName}\".  Will resolve to: ${ServiceIPs}"
 
- Listen_Options=""
- if [ "${ServiceName}" == "_default_" ];then # Default service for unmatched domains
-  Conf_File="/etc/nginx/conf.d/default.conf"
-  Server_Names="# Matches all unmatched domains"
-
-  # Add "default_server" to the listen directive
-  Listen_Options="default_server reuseport"
- else
-  Conf_File="/etc/nginx/sites-available/${ServiceName}.conf"
-  Domain_Names="$(fnSplitStrings "${Domains}" |paste -sd ' ' - )" # Space delimited domain names
-  Server_Names="server_name ${Domain_Names};"
-
+ if [ "${ServiceName}" != "_default_" ];then # If not the default service, setup bind/nginx for matched domains
   # Bind CNAME(s)
   fnSplitStrings "${Domains}" |sed "s/$/ IN CNAME ${ServiceName}.${RPZ_ZONE}.;/" >> /etc/bind/cache/rpz.db
   # Bind IP(s)
@@ -207,37 +204,23 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   fnSplitStrings "${Domains}" |sed "s/^.*$/    \0 ${ServiceName};/" >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
  fi
 
- # Nginx ${ServiceName}.conf
- cat << EOF >> "${Conf_File}"
-server {
-  listen 80 ${Listen_Options};
-  ${Server_Names}
-
-  access_log /data/logs/cache.log cachelog;
-  error_log /data/logs/cache_error.log;
-
-  include /etc/nginx/sites-available/conf.d/resolver.conf;
-
-  # Cache Location
-  proxy_cache ${ServiceName};
-
-  location / {
-    include /etc/nginx/sites-available/root.d/*.conf;
-  }
-
-  include /etc/nginx/sites-available/conf.d/fix_lol_updater.conf;
-}
-EOF
-
  # Setup and create the service-specific cache directory
  Service_Cache_Path="/data/cache/${ServiceName}"
  mkdir -p "${Service_Cache_Path}"
 
  # Nginx proxy_cache_path entries
- cat << EOF >> "/etc/nginx/conf.d/proxy_cache_path.d/${ServiceName}.conf"
+ if ! grep " keys_zone=${ServiceName}:" "/etc/nginx/conf.d/20_proxy_cache_path.conf";then # Check to see if this proxy_cache_path has already been appended.
+  if [ "${ServiceName}" == "_default_" ];then
+   echo "# Fallback default cache service" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
+  fi
+  cat << EOF >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
 proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CACHE_MEM_SIZE} inactive=${INACTIVE_TIME} ${CACHE_DISK_SIZE:+"max_size=${CACHE_DISK_SIZE}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
 EOF
+  let ++intServices
+ fi
 }
+# Intialize the variable for counting the number of enabled services
+intServices=0
 
 
 ############################################################
@@ -245,7 +228,6 @@ EOF
 if [ -z "${LANCACHE_IP}" ];then
  echo_msg "# LANCACHE_IP not provided.  Fallback default cache service not added." "warning"
 else
- addServiceComment "_default_" "Fallback default cache service"
  addService "_default_" "${LANCACHE_IP}" "*"
 fi
 
@@ -261,7 +243,7 @@ if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
   git -C "/data/cache-domains" reset --hard # Reset any files that were changed locally
   git -C "/data/cache-domains" clean -df # Remove any untracked files
  fi
- jq -c '.cache_domains[]' "/data/cache-domains/cache_domains.json" |while read obj;do
+ while read obj;do
   Service_Name=`echo "${obj}"|jq -r '.name'`
   Service_Desc=`echo "${obj}"|jq -r '.description'`
   if [ -z "${ONLYCACHE}" ];then # "ONLYCACHE" variable is not provided, so check for "DISABLE_${SERVICE}" variable and store it's value.
@@ -280,13 +262,13 @@ if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
     if ! [ -z "${Service_Desc}" ];then
      addServiceComment "${Service_Name}" "${Service_Desc}"
     fi
-    echo "${obj}" |jq -r '.domain_files[]' |while read domain_file;do
-     addServiceComment "${Service_Name}" " (${domain_file})"
+    while read domain_file;do
+     addServiceSectionComment "${Service_Name}" " (${domain_file})"
      addService "${Service_Name}" "${Cache_IP}" "$(cat "/data/cache-domains/${domain_file}")"
-    done
+    done <<<$(echo "${obj}" |jq -r '.domain_files[]')
    fi
   fi
- done
+ done <<<$(jq -c '.cache_domains[]' "/data/cache-domains/cache_domains.json")
 fi
 
 
@@ -321,13 +303,14 @@ mkdir -p /etc/nginx/sites-enabled
 if [ "$(ls /etc/nginx/sites-available/*.conf 2>/dev/null |wc -l)" != "0" ];then # Check for files in /etc/nginx/sites-available
  # Copy found sites-available as symbolic links to sites-enabled
  cp -s /etc/nginx/sites-available/*.conf /etc/nginx/sites-enabled/
-elif [ ! -e /etc/nginx/conf.d/default.conf ];then # Check for fallback default cache service
- # There are no configuration files found in /etc/nginx/sites-available and no default configuration found at /etc/nginx/conf.d/default.conf
+fi
+if [ "${intServices}" == "0"  ];then # No services appear to have been setup.
  echo_msg "# No services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
  echo_msg "# Note that at a minimum, LANCACHE_IP=\"IP Address\" is required.  Check the documentation for more information." "error"
  exit 1
 fi
 
+echo_msg "* Services enabled: ${intServices}" "info"
 
 # Startup programs w/logging
 ## Bind
