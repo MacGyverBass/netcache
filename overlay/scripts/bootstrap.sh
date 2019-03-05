@@ -213,8 +213,11 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   if [ "${ServiceName}" == "_default_" ];then
    echo "# Fallback default cache service" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
   fi
+  CacheMemSize="${ServiceName^^}CACHE_MEM_SIZE"; CacheMemSize="${!CacheMemSize}"; CacheMemSize="${CacheMemSize:-"${CACHE_MEM_SIZE}"}"
+  InactiveTime="${ServiceName^^}INACTIVE_TIME"; InactiveTime="${!InactiveTime}"; InactiveTime="${InactiveTime:-"${INACTIVE_TIME}"}"
+  CacheDiskSize="${ServiceName^^}CACHE_DISK_SIZE"; CacheDiskSize="${!CacheDiskSize}"; CacheDiskSize="${CacheDiskSize:-"${CACHE_DISK_SIZE}"}"
   cat << EOF >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
-proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CACHE_MEM_SIZE} inactive=${INACTIVE_TIME} ${CACHE_DISK_SIZE:+"max_size=${CACHE_DISK_SIZE}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
+proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CacheMemSize} inactive=${InactiveTime} ${CacheDiskSize:+"max_size=${CacheDiskSize}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
 EOF
   let ++intServices
  fi
