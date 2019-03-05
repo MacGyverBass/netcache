@@ -209,7 +209,7 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
  mkdir -p "${Service_Cache_Path}"
 
  # Nginx proxy_cache_path entries
- if ! grep " keys_zone=${ServiceName}:" "/etc/nginx/conf.d/20_proxy_cache_path.conf";then # Check to see if this proxy_cache_path has already been appended.
+ if ! grep -q " keys_zone=${ServiceName}:" "/etc/nginx/conf.d/20_proxy_cache_path.conf";then # Check to see if this proxy_cache_path has already been appended.
   if [ "${ServiceName}" == "_default_" ];then
    echo "# Fallback default cache service" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
   fi
