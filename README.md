@@ -238,6 +238,31 @@ If you are a games publisher and you like LAN parties, gaming centers and other 
 
 If you need any further advice, please contact [uklans.net](https://www.uklans.net/) for help.
 
+## Tuning Your Cache
+
+Steam in particular has some inherent limitations caused by the adherence to the HTTP spec connection pool. As such, Steam download speeds are highly dependent on the latency between your server and the Steam CDN servers.  In the event you find your initial download speed with the default settings is slow, this can be resolved by allocating more IP addresses to your cache.  We suggest adding one IP at a time to see how much gain can be had (4 seems to work for a number of people).
+
+### Step 1: Adding IP Addresses to Your Docker Host
+
+Consult your OS documentation in order to add additional IP addresses onto your docker cache host machine.
+
+### Step 2: Adding IP Addresses to Your Cache Container
+
+In order for this to work you need to add the port maps to your docker run command.
+
+- Using `-p 80:80 -p 443:443` should be sufficient as per the documentation.  Do note that this will bind to all available IP addresses on your host OS.
+- You may also bind just the specific IP addresses accordingly by using multiple publish commands.  For example, you may use `-p 10.10.1.11:80:80 -p 10.10.1.11:443:443 -p 10.10.1.12:80:80 -p 10.10.1.12:443:443` to your docker run command.
+
+### Step 3: Informing netcache of the Extra IP Addresses
+
+Finally we need to inform netcache that these services are now available on multiple IP addresses.  This can be done on the command line using the following command `-e LANCACHE_IP="10.10.1.11 10.10.1.12"`.  Note the quotes surrounding the multiple IP addresses.
+
+If you are using alternate IP addresses for specific services, such as in a multi-server setup, you can use the `${Service}CACHE_IP` specific entries for this as well.  For example, if you run your Steam cache on 10.10.1.21 and added 10.10.1.22 to that machine, you can use `-e STEAMCACHE_IP="10.10.1.21 10.10.1.22"` in your docker run command.
+
+### Step 4: Testing
+
+Using Steam as an example, choose a game which has not been seen by the cache before (or clear your `/data/cache` folder) and start it downloading.  Check to see what the maximum speed seen by your Steam client is.  If necessary repeat steps 1-3 with additional IPs until you see a download equivalent to your uncached Steam client or no longer see an improvement vs the previous IP allocation.
+
 ## Special Usage
 
 This Docker service will cache all CDN services (defined in the [uklans cache-domains repo](https://github.com/uklans/cache-domains) so multiple instances are not required.  However, you can execute multiple instances of this Docker container to function as independent services.
@@ -297,11 +322,14 @@ Many environmental variables are used in this project and most are pre-defined w
 
 - `CACHE_DOMAINS_REPO` (Default: "`https://github.com/uklans/cache-domains.git`"): This can be set to a custom git URL.  This may come in handy when you do not want to pull from uklans/cache-domains master repository or if you decide to fork it and modify it for your own usage.  Note that if this value is empty `""`, the script will skip cloning/syncing/using the repository.
 - `ENABLE_DNSSEC_VALIDATION` (Default: "`false`"): Setting this to "`true`" enables DNSSEC Validation via "`dnssec-validation auto;`".  Setting this to "`enforce`" will enable DNSSEC Validation via "`dnssec-validation yes;`".  Currently, this is disabled by default and explaining this is beyond the scope of this article, but if you want to enable it, please read up first.  For more information, see [BIND DNSSEC Guide](https://ftp.isc.org/isc/dnssec-guide/html/dnssec-guide.html#dnssec-validation-explained) and [Domain Name System Security Extensions (DNSSEC) and BIND | Internet Systems Consortium](https://www.isc.org/downloads/bind/dnssec/).
-- `NGINX_WORKER_PROCESSES` (Default: "`16`"): Defines the max number of nginx workers to create.  Note that "auto" may also be given to have nginx automatically decide how many workers to use.  For more information, see [ngx_core_module - worker_processes](https://nginx.org/en/docs/ngx_core_module.html#worker_processes).
+- `NGINX_WORKER_PROCESSES` (Default: "`auto`"): Defines the max number of nginx workers to create.  The optimal value depends on many factors including (but not limited to) the number of CPU cores, the number of hard disk drives that store data, and load pattern. When one is in doubt, setting it to the number of available CPU cores would be a good start (the value "auto" will try to auto-detect it).  For more information, see [ngx_core_module - worker_processes](https://nginx.org/en/docs/ngx_core_module.html#worker_processes).
 - `CACHE_MAX_AGE` (Default: "`3650d`"): Defines how long to keep items in cache.  For more information, see [ngx_http_proxy_module - proxy_cache_valid](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_valid).
 - `INACTIVE_TIME` (Default: "`365d`"): Defines how long to keep unused items in cache.  For more information, see [ngx_http_proxy_module - proxy_cache_path](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) regarding *`inactive=time`*.
-- `CACHE_MEM_SIZE` (Default: "`500m`"): Defines how much memory each service can allocate.  Please consider adjusting this value when running on systems with lower amounts of RAM.  For more information, see [ngx_http_proxy_module - proxy_cache_path](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) regarding *`keys_zone=name:size`*.
+  - This variable also supports service-specific assignment when provided with the service prefixed.  For example: `STEAMINACTIVE_TIME` or `RIOTINACTIVE_TIME`
+- `CACHE_MEM_SIZE` (Default: "`250m`"): Defines how much memory each service can allocate.  Please consider adjusting this value when running on systems with lower amounts of RAM.  For more information, see [ngx_http_proxy_module - proxy_cache_path](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) regarding *`keys_zone=name:size`*.
+  - This variable also supports service-specific assignment when provided with the service prefixed.  For example: `STEAMCACHE_MEM_SIZE` or `RIOTCACHE_MEM_SIZE`
 - `CACHE_DISK_SIZE` (Default: ""): Defines how much disk space each service can allocate.  An empty value `""` means it will only start removing old items when the destination is full.  For more information, see [ngx_http_proxy_module - proxy_cache_path](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) regarding *`max_size=size`*.
+  - This variable also supports service-specific assignment when provided with the service prefixed.  For example: `STEAMCACHE_DISK_SIZE` or `RIOTCACHE_DISK_SIZE`
 - `NO_COLORS` (Default: "`false`"): Disables colors in echo/logs on-screen.  (Logs are saved directly without any color formatting.)
 - `CLEAR_LOGS` (Default: "`false`"): Clears log files on startup of container.  This clears all log files upon startup of the container.  This can either be useful for debugging or for individuals that prefer their logs to be clean when starting up the container.
 
