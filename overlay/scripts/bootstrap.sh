@@ -237,6 +237,11 @@ fi
 
 # UK-LANs Cache-Domain Lists
 if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
+ if [ -d "/data/cache-domains/.git" ]&&[ "${CACHE_DOMAINS_REPO}" != "$(git -C "/data/cache-domains" remote get-url origin)" ];then
+  echo_msg -n "* Repository URL has changed.  Clearing repo directory..."
+  rm -rf "/data/cache-domains"
+  echo_msg "  Done." "info"
+ fi
  if [ ! -d "/data/cache-domains/.git" ];then
   echo_msg "* Cloning repository from ${CACHE_DOMAINS_REPO}"
   git clone "${CACHE_DOMAINS_REPO}" "/data/cache-domains" # Download repo
@@ -245,6 +250,7 @@ if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
   git -C "/data/cache-domains" fetch # Update repo
   git -C "/data/cache-domains" reset --hard # Reset any files that were changed locally
   git -C "/data/cache-domains" clean -df # Remove any untracked files
+  git -C "/data/cache-domains" merge # Merge files with remote repo
  fi
  while read obj;do
   Service_Name=`echo "${obj}"|jq -r '.name'`
