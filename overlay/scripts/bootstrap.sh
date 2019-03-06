@@ -93,7 +93,7 @@ chown named:named /data/logs/named
 chown nginx:nginx /data/cache
 
 # Clear logs if requested
-if [ "${CLEAR_LOGS}" == "true" ];then
+if [ "${CLEAR_LOGS,,}" == "true" ];then
  echo_msg "* Clearing previous log files"
  rm -f /data/logs/*.log /data/logs/named/*.log
 fi
@@ -303,7 +303,7 @@ fi
 
 ############################################################
 # Notify if the user selected to disable all programs
-if [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_HTTPS_PROXY,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER}" == "true" ];then
+if [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_HTTPS_PROXY,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER,,}" == "true" ];then
  echo_msg "* Nothing to run.  Please check your variables provided. (DISABLE_HTTP_CACHE, DISABLE_HTTPS_PROXY, DISABLE_DNS_SERVER)" "warning"
 fi
 
@@ -323,7 +323,7 @@ echo_msg "* Services enabled: ${intServices}" "info"
 
 # Startup programs w/logging
 ## Bind
-if [ "${DISABLE_DNS_SERVER}" != "true" ];then
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
  # Test the Bind configuration
  echo_msg "* Checking Bind9 configuration"
  if ! /usr/sbin/named-checkconf /etc/bind/named.conf ;then
@@ -337,7 +337,7 @@ if [ "${DISABLE_DNS_SERVER}" != "true" ];then
  fi
 fi
 ## SNI Proxy
-if [ "${DISABLE_HTTPS_PROXY}" != "true" ];then
+if [ "${DISABLE_HTTPS_PROXY,,}" != "true" ];then
  # Display logs and Execute SNI Proxy
  echo_msg "* Running SNI Proxy w/logging" "info"
  fnTailLog "sniproxy" /data/logs/sniproxy.log "/ ([0-9]{1,3}\.){3}[0-9]{1,3}/" "\e[95m&\e[0m" "/:[0-9]* ->\e\[95m/" "&\e[0m" "/\e\[95m\e\[0m/" "" "/:443 -> ([0-9]{1,3}\.){3}[0-9]{1,3}/" "\e[96m&\e[0m" "/\e\[96m:443 ->/" ":443 ->\e[96m"
@@ -345,7 +345,7 @@ if [ "${DISABLE_HTTPS_PROXY}" != "true" ];then
  /usr/sbin/sniproxy -c /etc/sniproxy/sniproxy.conf
 fi
 ## Nginx
-if [ "${DISABLE_HTTP_CACHE}" != "true" ];then
+if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
  # Check permissions on /data folder...
  echo_msg -n "* Checking permissions (This may take a long time if the permissions are incorrect on large caches)..."
  find /data/cache \! -user nginx -exec chown nginx:nginx '{}' +
