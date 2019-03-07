@@ -321,6 +321,19 @@ fi
 
 echo_msg "* Services enabled: ${intServices}" "info"
 
+
+############################################################
+# Add a diagnostic service for DNS tests
+if [ -z "${LANCACHE_IP}" ];then
+ echo_msg "# LANCACHE_IP not provided.  Diagnostic DNS service not added." "warning"
+else
+ echo_msg "* Adding diangostic service..."
+ addServiceComment "diagnostic" "Diagnostic service for DNS testing"
+ addService "diagnostic" "${LANCACHE_IP}" "dns.test"
+fi
+
+
+############################################################
 # Startup programs w/logging
 ## Bind
 if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
