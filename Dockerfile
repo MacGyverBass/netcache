@@ -32,7 +32,7 @@ COPY	overlay/ /
 
 RUN	mkdir -m 755 -p /data	\
 	&& rm /etc/nginx/conf.d/default.conf	\
-	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d /etc/nginx/conf.d/proxy_cache_path.d	\
+	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
 	&& chown named:named /var/cache/bind	\
 	&& chmod 755 /scripts/*
 
