@@ -36,7 +36,7 @@ RUN	mkdir -m 755 -p /data	\
 	&& chown named:named /var/cache/bind	\
 	&& chmod 755 /scripts/*
 
-EXPOSE	53/udp 80 443
+EXPOSE	53/udp 53/tcp 80/tcp 443/tcp
 
 VOLUME	["/data"]
 
