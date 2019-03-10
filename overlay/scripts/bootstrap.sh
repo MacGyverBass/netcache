@@ -181,27 +181,44 @@ addServiceSectionComment () { # addServiceSectionComment "Service Name" "Comment
  echo "${Comment}" |sed "s/^/; /" >> "${RPZ_DB_File}"
  echo "${Comment}" |sed "s/^/# /" >> "${Maps_Conf_File}"
 }
-addService () { # addService "Service Name" "Service-IP" "Domains"
+addService_DNS () { # addService_DNS "Service Name" "Service-IP" "Domains"
  ServiceName="$1" # Name of the given service.
  ServiceIPs="$2" # String containing the destination IP to be given back to the client PC.
  Domains="$3" # String containing domain name entries, comma/space delimited.
 
  if [ -z "${ServiceName}" ]||[ -z "${ServiceIPs}" ]||[ -z "${Domains}" ];then # All fields are required.
-  echo_msg "# Error adding service \"${ServiceName}\".  All arguments are required." "warning"
   return
  fi
- echo "+ Adding service \"${ServiceName}\".  Will resolve to: ${ServiceIPs}"
 
- if [ "${ServiceName}" != "_default_" ];then # If not the default service, setup bind/nginx for matched domains
-  # Bind CNAME(s)
-  fnSplitStrings "${Domains}" |sed "s/$/ IN CNAME ${ServiceName}.${RPZ_ZONE}.;/" >> /etc/bind/cache/rpz.db
-  # Bind IP(s)
-  fnSplitStrings "${ServiceIPs}" |while read ServiceIP;do
-   echo "${ServiceName} IN A ${ServiceIP};" >> /etc/bind/cache/cache.db
-  done
+ if [ "${ServiceName}" == "diagnostic" ];then # Add a comment for the DNS diagnostic service
+  echo "; Diagnostic service for DNS testing" |tee -a /etc/bind/cache/cache.db /etc/bind/cache/rpz.db >/dev/null
+ elif ! grep -q " IN CNAME ${ServiceName}.${RPZ_ZONE}.;$" "/etc/bind/cache/rpz.db";then # Increment intDNS once per service
+  let ++intDNS
+ fi
 
-  # Nginx service maps
-  fnSplitStrings "${Domains}" |sed "s/^.*$/    \0 ${ServiceName};/" >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+ # Bind CNAME(s)
+ fnSplitStrings "${Domains}" |sed "s/$/ IN CNAME ${ServiceName}.${RPZ_ZONE}.;/" >> /etc/bind/cache/rpz.db
+ # Bind IP(s)
+ fnSplitStrings "${ServiceIPs}" |while read ServiceIP;do
+  echo "${ServiceName} IN A ${ServiceIP};" >> /etc/bind/cache/cache.db
+ done
+}
+addService_CacheMaps () { # addService_Cache "Service Name" "Domains"
+ ServiceName="$1" # Name of the given service.
+ Domains="$2" # String containing domain name entries, comma/space delimited.
+
+ if [ -z "${ServiceName}" ]||[ -z "${Domains}" ];then # All fields are required.
+  return
+ fi
+
+ # Nginx service maps
+ fnSplitStrings "${Domains}" |sed "s/^.*$/    \0 ${ServiceName};/" >> "/etc/nginx/conf.d/maps.d/${ServiceName}.conf"
+}
+addService_CachePath () { # addService_Cache "Service Name"
+ ServiceName="$1" # Name of the given service.
+
+ if [ -z "${ServiceName}" ];then # All fields are required.
+  return
  fi
 
  # Setup and create the service-specific cache directory
@@ -210,8 +227,10 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
 
  # Nginx proxy_cache_path entries
  if ! grep -q " keys_zone=${ServiceName}:" "/etc/nginx/conf.d/20_proxy_cache_path.conf";then # Check to see if this proxy_cache_path has already been appended.
-  if [ "${ServiceName}" == "_default_" ];then
+  if [ "${ServiceName}" == "_default_" ];then # Add a comment for the default cache service
    echo "# Fallback default cache service" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
+  else # Increment the intCache
+   let ++intCache
   fi
   CacheMemSize="${ServiceName^^}CACHE_MEM_SIZE"; CacheMemSize="${!CacheMemSize}"; CacheMemSize="${CacheMemSize:-"${CACHE_MEM_SIZE}"}"
   InactiveTime="${ServiceName^^}INACTIVE_TIME"; InactiveTime="${!InactiveTime}"; InactiveTime="${InactiveTime:-"${INACTIVE_TIME}"}"
@@ -219,21 +238,45 @@ addService () { # addService "Service Name" "Service-IP" "Domains"
   cat << EOF >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
 proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CacheMemSize} inactive=${InactiveTime} ${CacheDiskSize:+"max_size=${CacheDiskSize}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
 EOF
-  let ++intServices
  fi
+}
+addService () { # addService "Service Name" "Service-IP" "Domains"
+ ServiceName="$1" # Name of the given service.
+ ServiceIPs="$2" # String containing the destination IP to be given back to the client PC.
+ Domains="$3" # String containing domain name entries, comma/space delimited.
+
+ addService_CachePath "${ServiceName}"
+ addService_CacheMaps "${ServiceName}" "${Domains}"
+ addService_DNS "${ServiceName}" "${ServiceIPs}" "${Domains}"
 }
 # Intialize the variable for counting the number of enabled services
 intServices=0
+intCache=0
+intDNS=0
+
+
+############################################################
+# Function for displaying the addition of a service
+echoAddingService () { # echoAddingService "Service Name" "Service-IP"
+ ServiceName="$1" # Name of the given service.
+ ServiceIPs="$2" # String containing the destination IP to be given back to the client PC.
+
+ if [ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ];then
+  echo "+ Adding \"${ServiceName}\" DNS/Cache service.  Will resolve to: ${ServiceIPs}"
+ elif [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ];then
+  echo "+ Adding \"${ServiceName}\" DNS service.  Will resolve to: ${ServiceIPs}"
+ elif [ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ "${DISABLE_DNS_SERVER,,}" == "true" ];then
+  echo "+ Adding \"${ServiceName}\" Cache service."
+ fi
+}
 
 
 ############################################################
 # Add a fallback default cache service in case a domain entry does not match
-if [ -z "${LANCACHE_IP}" ];then
- echo_msg "# LANCACHE_IP not provided.  Fallback default cache service not added." "warning"
-else
- addService "_default_" "${LANCACHE_IP}" "*"
+if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
+ echo_msg "* Adding fallback default cache."
+ addService_CachePath "_default_" # Just the Cache Path needs to be set for the default service.
 fi
-
 
 # UK-LANs Cache-Domain Lists
 if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
@@ -252,6 +295,7 @@ if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
   git -C "/data/cache-domains" clean -df # Remove any untracked files
   git -C "/data/cache-domains" merge # Merge files with remote repo
  fi
+ echo_msg "* Adding repository services..."
  while read obj;do
   Service_Name=`echo "${obj}"|jq -r '.name'`
   Service_Desc=`echo "${obj}"|jq -r '.description'`
@@ -263,10 +307,12 @@ if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
    Disabled="true"
   fi
   if [ "${Disabled,,}" != "true" ];then
+   let ++intServices
    Cache_IP="${Service_Name^^}CACHE_IP"; Cache_IP="${!Cache_IP}"; Cache_IP="${Cache_IP:-"${LANCACHE_IP}"}"
-   if [ -z "${Cache_IP}" ];then
+   if [ -z "${Cache_IP}" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ];then # Cache_IP not provided
     echo_msg "# ${Service_Name^^}CACHE_IP not provided.  Service not added." "warning"
    else
+    echoAddingService "${Service_Name}" "${Cache_IP}"
     addServiceComment "${Service_Name}" "${Service_Name}"
     if ! [ -z "${Service_Desc}" ];then
      addServiceComment "${Service_Name}" "${Service_Desc}"
@@ -285,15 +331,17 @@ fi
 if [ ! -z "${CUSTOMCACHE}" ];then
  echo_msg "* Adding custom services..."
  for Service_Name in ${CUSTOMCACHE};do
+  let ++intServices
   Cache_IP="${Service_Name^^}CACHE_IP"; Cache_IP="${!Cache_IP}"; Cache_IP="${Cache_IP:-"${LANCACHE_IP}"}"
   Cache_Domains="${Service_Name^^}CACHE"; Cache_Domains="${!Cache_Domains}"
-  if [ -z "${Cache_IP}" ]&&[ -z "${Cache_Domains}" ];then
+  if [ -z "${Cache_IP}" ]&&[ -z "${Cache_Domains}" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ];then # No domains and Cache_IP not provided
    echo_msg "# ${Service_Name^^}CACHE_IP and ${Service_Name^^}CACHE not provided.  Service not added." "warning"
-  elif [ -z "${Cache_IP}" ];then
+  elif [ -z "${Cache_IP}" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ];then # Cache_IP not provided (but domains were provided)
    echo_msg "# ${Service_Name^^}CACHE_IP not provided.  Service not added." "warning"
-  elif [ -z "${Cache_Domains}" ];then
+  elif [ -z "${Cache_Domains}" ];then # Domains not provided (but either DNS server is disabled or Cache_IP was provided)
    echo_msg "# ${Service_Name^^}CACHE not provided.  Service not added." "warning"
   else
+   echoAddingService "${Service_Name}" "${Cache_IP}"
    addServiceComment "${Service_Name}" "${Service_Name}"
    addService "${Service_Name}" "${Cache_IP}" "${Cache_Domains}"
   fi
@@ -302,9 +350,21 @@ fi
 
 
 ############################################################
-# Notify if the user selected to disable all programs
+# Notify if the user selected to disable all programs or if none of the services were started.
 if [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_HTTPS_PROXY,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER,,}" == "true" ];then
  echo_msg "* Nothing to run.  Please check your variables provided. (DISABLE_HTTP_CACHE, DISABLE_HTTPS_PROXY, DISABLE_DNS_SERVER)" "warning"
+ exit 0
+elif [ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ "${DISABLE_DNS_SERVER,,}" != "true" ]&&[ "${intCache}" == "0"  ]&&[ "${intDNS}" == "0" ];then
+ echo_msg "# No DNS/Cache services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
+ echo_msg "# Note that at a minimum, LANCACHE_IP=\"IP Address\" is required for DNS.  Check the documentation for more information." "error"
+ exit 1
+elif [ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ "${intCache}" == "0"  ];then
+ echo_msg "# No Cache services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
+ exit 1
+elif [ "${DISABLE_DNS_SERVER,,}" != "true" ]&&[ "${intDNS}" == "0" ];then
+ echo_msg "# No DNS services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
+ echo_msg "# Note that at a minimum, LANCACHE_IP=\"IP Address\" is required for DNS.  Check the documentation for more information." "error"
+ exit 1
 fi
 
 # Enable all Nginx configurations found in sites-available...
@@ -313,23 +373,22 @@ if [ "$(ls /etc/nginx/sites-available/*.conf 2>/dev/null |wc -l)" != "0" ];then 
  # Copy found sites-available as symbolic links to sites-enabled
  cp -s /etc/nginx/sites-available/*.conf /etc/nginx/sites-enabled/
 fi
-if [ "${intServices}" == "0"  ];then # No services appear to have been setup.
- echo_msg "# No services enabled.  Please check your configuration.  Verify that you have the correct variables applied to this docker." "error"
- echo_msg "# Note that at a minimum, LANCACHE_IP=\"IP Address\" is required.  Check the documentation for more information." "error"
- exit 1
+
+# Notify the user of how many services were enabled
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
+ Message_Level="info";if [ "${intDNS}" != "${intServices}" ];then Message_Level="warning";fi
+ echo_msg "* DNS Services enabled: ${intDNS}/${intServices}" "${Message_Level}"
 fi
-
-echo_msg "* Services enabled: ${intServices}" "info"
-
+if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
+ Message_Level="info";if [ "${intCache}" != "${intServices}" ];then Message_Level="warning";fi
+ echo_msg "* Cache Service enabled: ${intCache}/${intServices}" "${Message_Level}"
+fi
 
 ############################################################
 # Add a diagnostic service for DNS tests
-if [ -z "${LANCACHE_IP}" ];then
- echo_msg "# LANCACHE_IP not provided.  Diagnostic DNS service not added." "warning"
-else
- echo_msg "* Adding diangostic service..."
- addServiceComment "diagnostic" "Diagnostic service for DNS testing"
- addService "diagnostic" "${LANCACHE_IP}" "dns.test"
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
+ addService_DNS "diagnostic" "${LANCACHE_IP}" "dns.test"
+ echo_msg "* Added DNS Diagnostic service."
 fi
 
 
