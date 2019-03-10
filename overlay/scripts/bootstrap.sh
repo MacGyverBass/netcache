@@ -398,7 +398,7 @@ fi
 if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
  # Test the Bind configuration
  echo_msg "* Checking Bind9 configuration"
- if ! /usr/sbin/named-checkconf /etc/bind/named.conf ;then
+ if ! /usr/sbin/named-checkconf -z /etc/bind/named.conf ;then
   echo_msg "# Problem with Bind9 configuration" "error"
  else
   # Display logs and Execute Bind
