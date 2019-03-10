@@ -202,9 +202,7 @@ addService_DNS () { # addService_DNS "Service Name" "Service-IP" "Domains"
  # Bind CNAME(s)
  fnSplitStrings "${Domains}" |sed "s/$/ IN CNAME ${ServiceName}.${RPZ_ZONE}.;/" >> /etc/bind/cache/rpz.db
  # Bind IP(s)
- fnSplitStrings "${ServiceIPs}" |while read ServiceIP;do
-  echo "${ServiceName} IN A ${ServiceIP};" >> /etc/bind/cache/cache.db
- done
+ fnSplitStrings "${ServiceIPs}" |sed "s/^.*$/${ServiceName} IN A \0;/" >> /etc/bind/cache/cache.db
 }
 addService_CacheMaps () { # addService_Cache "Service Name" "Domains"
  ServiceName="$1" # Name of the given service.
@@ -238,9 +236,7 @@ addService_CachePath () { # addService_Cache "Service Name"
   CacheMemSize="${ServiceName^^}CACHE_MEM_SIZE"; CacheMemSize="${!CacheMemSize}"; CacheMemSize="${CacheMemSize:-"${CACHE_MEM_SIZE}"}"
   InactiveTime="${ServiceName^^}INACTIVE_TIME"; InactiveTime="${!InactiveTime}"; InactiveTime="${InactiveTime:-"${INACTIVE_TIME}"}"
   CacheDiskSize="${ServiceName^^}CACHE_DISK_SIZE"; CacheDiskSize="${!CacheDiskSize}"; CacheDiskSize="${CacheDiskSize:-"${CACHE_DISK_SIZE}"}"
-  cat << EOF >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
-proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CacheMemSize} inactive=${InactiveTime} ${CacheDiskSize:+"max_size=${CacheDiskSize}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;
-EOF
+  echo "proxy_cache_path ${Service_Cache_Path} levels=2:2 keys_zone=${ServiceName}:${CacheMemSize} inactive=${InactiveTime} ${CacheDiskSize:+"max_size=${CacheDiskSize}"} loader_files=1000 loader_sleep=50ms loader_threshold=300ms use_temp_path=off;" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
  fi
 }
 addService () { # addService "Service Name" "Service-IP" "Domains"
