@@ -16,10 +16,14 @@ rm -rf "/tmp/chroot_nslookup"
 
 # Display the result
 if [ ${Result} -eq 0 ];then
+ if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[32m";fi # 32=Green
  echo "Successfully Redirected DNS Lookup"
+ if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
  exit 0
 else
+ if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[31m";fi # 31=Red
  echo "Error looking up test DNS entry."
+ if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
  exit -1
 fi
 
