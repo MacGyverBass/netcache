@@ -19,7 +19,7 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	CLEAR_LOGS="false"	\
 	ONLYCACHE=""	\
 	CUSTOMCACHE=""	\
-	LANCACHE=""
+	LANCACHE_IP=""
 
 RUN	apk --no-cache add	\
 		bash	\
