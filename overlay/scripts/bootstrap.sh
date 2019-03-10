@@ -76,6 +76,7 @@ fnTerminate () { # Executes when CTRL+C is pressed in an interactive terminal (-
   /usr/sbin/nginx -c /etc/nginx/nginx.conf -s quit # Graceful Shutdown
  fi
  echo_msg "* Finished." "info"
+ exit 0
 }
 trap 'fnTerminate' SIGINT  # CTRL+C
 trap 'fnTerminate' SIGTERM # docker stop
