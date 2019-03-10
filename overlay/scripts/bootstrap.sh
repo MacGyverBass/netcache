@@ -152,6 +152,8 @@ echo "};" >>  /etc/bind/named.conf.logging
 echo "worker_processes ${NGINX_WORKER_PROCESSES};" > /etc/nginx/workers.conf
 ## Setup /etc/nginx/sites-available/root.d/20_cache.conf
 sed -i "s/\${CACHE_MAX_AGE}/${CACHE_MAX_AGE}/g" /etc/nginx/sites-available/root.d/20_cache.conf
+## Setup /etc/nginx/conf.d/30_maps.conf with default cache name
+sed -i "s/\${DEFAULT_CACHE}/${DEFAULT_CACHE}/g" /etc/nginx/conf.d/30_maps.conf
 
 # Setup Bind RPZ Zone and Start of Authority Resource Record (SOA RR)
 SOA_Serial=`date +%Y%m%d%H` #yyyymmddHH (year,month,day,hour)
@@ -190,7 +192,7 @@ addService_DNS () { # addService_DNS "Service Name" "Service-IP" "Domains"
   return
  fi
 
- if [ "${ServiceName}" == "diagnostic" ];then # Add a comment for the DNS diagnostic service
+ if [ "${ServiceName}" == "${TEST_DNS}" ];then # Add a comment for the DNS diagnostic service
   echo "; Diagnostic service for DNS testing" |tee -a /etc/bind/cache/cache.db /etc/bind/cache/rpz.db >/dev/null
  elif ! grep -q " IN CNAME ${ServiceName}.${RPZ_ZONE}.;$" "/etc/bind/cache/rpz.db";then # Increment intDNS once per service
   let ++intDNS
@@ -227,7 +229,7 @@ addService_CachePath () { # addService_Cache "Service Name"
 
  # Nginx proxy_cache_path entries
  if ! grep -q " keys_zone=${ServiceName}:" "/etc/nginx/conf.d/20_proxy_cache_path.conf";then # Check to see if this proxy_cache_path has already been appended.
-  if [ "${ServiceName}" == "_default_" ];then # Add a comment for the default cache service
+  if [ "${ServiceName}" == "${DEFAULT_CACHE}" ];then # Add a comment for the default cache service
    echo "# Fallback default cache service" >> "/etc/nginx/conf.d/20_proxy_cache_path.conf"
   else # Increment the intCache
    let ++intCache
@@ -275,7 +277,7 @@ echoAddingService () { # echoAddingService "Service Name" "Service-IP"
 # Add a fallback default cache service in case a domain entry does not match
 if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
  echo_msg "* Adding fallback default cache."
- addService_CachePath "_default_" # Just the Cache Path needs to be set for the default service.
+ addService_CachePath "${DEFAULT_CACHE}" # Just the Cache Path needs to be set for the default service.
 fi
 
 # UK-LANs Cache-Domain Lists
@@ -386,8 +388,9 @@ fi
 
 ############################################################
 # Add a diagnostic service for DNS tests
-if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
- addService_DNS "diagnostic" "${LANCACHE_IP}" "dns.test"
+Diag_IP="${TEST_DNS^^}CACHE_IP"; Diag_IP="${!Diag_IP}"; Diag_IP="${Diag_IP:-"${LANCACHE_IP}"}"
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ]&&[ ! -z "${Diag_IP}" ];then
+ addService_DNS "${TEST_DNS}" "${Diag_IP}" "dns.test"
  echo_msg "* Added DNS Diagnostic service."
 fi
 
