@@ -349,6 +349,13 @@ fi
 
 
 ############################################################
+# Add a diagnostic service for DNS tests
+Diag_IP="${TEST_DNS^^}CACHE_IP"; Diag_IP="${!Diag_IP}"; Diag_IP="${Diag_IP:-"${LANCACHE_IP}"}"
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ]&&[ ! -z "${Diag_IP}" ];then
+ addService_DNS "${TEST_DNS}" "${Diag_IP}" "dns.test"
+ echo_msg "* Adding DNS Diagnostic service."
+fi
+
 # Notify if the user selected to disable all programs or if none of the services were started.
 if [ "${DISABLE_HTTP_CACHE,,}" == "true" ]&&[ "${DISABLE_HTTPS_PROXY,,}" == "true" ]&&[ "${DISABLE_DNS_SERVER,,}" == "true" ];then
  echo_msg "* Nothing to run.  Please check your variables provided. (DISABLE_HTTP_CACHE, DISABLE_HTTPS_PROXY, DISABLE_DNS_SERVER)" "warning"
@@ -381,14 +388,6 @@ fi
 if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
  Message_Level="info";if [ "${intCache}" != "${intServices}" ];then Message_Level="warning";fi
  echo_msg "* Cache Service enabled: ${intCache}/${intServices}" "${Message_Level}"
-fi
-
-############################################################
-# Add a diagnostic service for DNS tests
-Diag_IP="${TEST_DNS^^}CACHE_IP"; Diag_IP="${!Diag_IP}"; Diag_IP="${Diag_IP:-"${LANCACHE_IP}"}"
-if [ "${DISABLE_DNS_SERVER,,}" != "true" ]&&[ ! -z "${Diag_IP}" ];then
- addService_DNS "${TEST_DNS}" "${Diag_IP}" "dns.test"
- echo_msg "* Added DNS Diagnostic service."
 fi
 
 
