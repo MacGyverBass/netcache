@@ -109,7 +109,7 @@ touch /etc/nginx/conf.d/20_proxy_cache_path.conf
 # Setup DNS Entries
 DNS_List="$(fnSplitStrings "${UPSTREAM_DNS}")"
 echo "${DNS_List}" |sed "s/^/+ Adding nameserver: /"
-DNS_String="$(fnSplitStrings "${UPSTREAM_DNS}" |paste -sd ' ' - )" # Space delimited DNS IPs for sniproxy.conf and resolver.conf and named.conf.options
+DNS_String="$(echo "${DNS_List}" |paste -sd ' ' - )" # Space delimited DNS IPs for sniproxy.conf and resolver.conf and named.conf.options
 ## Setup /etc/resolv.conf
 echo "${DNS_List}" |sed "s/^/nameserver /" > /etc/resolv.conf
 ## Setup nginx resolver.conf
