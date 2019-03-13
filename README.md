@@ -227,6 +227,10 @@ docker exec -it ${Container_Name} /scripts/cache_test.sh
 docker exec -it ${Container_Name} /scripts/https_test.sh
 ```
 
+Additionally, you may want to test the speed of your cache versus a regular download.  Execute `speed_test.sh` in the same manner as above to download a 10MB file and test the results using regular downloading and using cached downloading.  Note that the cached speed will likely score higher than your network connection, as it is being ran within the image itself, but it should give a basic test of your cache setup.
+
+The script `test.sh` is also included to test the DNS Server, HTTP Cache, and HTTPS Proxy all in sequence.  It will display success/failure message in addition to the individual test script output messages.  It gives an exit code of 0 (zero) upon success, and 1 (one) upon failure; this may later be used as part of the Docker Health-Check feature.
+
 ## Advice to Publishers
 
 If you are a games publisher and you like LAN parties, gaming centers and other places to be able to easily cache your game updates, we recommend the following:
