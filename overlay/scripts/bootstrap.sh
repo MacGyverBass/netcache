@@ -295,9 +295,7 @@ if [ "${DISABLE_DNS_SERVER,,}" != "true" ]||[ "${DISABLE_HTTP_CACHE,,}" != "true
   git -C "/data/cache-domains" merge # Merge files with remote repo
  fi
  echo_msg "* Adding repository services..."
- while read obj;do
-  Service_Name=`echo "${obj}"|jq -r '.name'`
-  Service_Desc=`echo "${obj}"|jq -r '.description'`
+ while IFS=$'\t' read -r Service_Name Service_Desc Service_Domain_Files;do
   if [ -z "${ONLYCACHE}" ];then # "ONLYCACHE" variable is not provided, so check for "DISABLE_${SERVICE}" variable and store it's value.
    Disabled="DISABLE_${Service_Name^^}"; Disabled="${!Disabled}"
   elif [[ " ${ONLYCACHE^^} " == *" ${Service_Name^^} "* ]];then # "ONLYCACHE" contains this service.
@@ -313,16 +311,16 @@ if [ "${DISABLE_DNS_SERVER,,}" != "true" ]||[ "${DISABLE_HTTP_CACHE,,}" != "true
    else
     echoAddingService "${Service_Name}" "${Cache_IP}"
     addServiceComment "${Service_Name}" "${Service_Name}"
-    if ! [ -z "${Service_Desc}" ];then
+    if [ ! -z "${Service_Desc}" ]&&[ "${Service_Desc}" != "null" ];then
      addServiceComment "${Service_Name}" "${Service_Desc}"
     fi
-    while read domain_file;do
+    while read -r -d $'\t' domain_file || [ -n "${domain_file}" ];do
      addServiceSectionComment "${Service_Name}" " (${domain_file})"
      addService "${Service_Name}" "${Cache_IP}" "$(cat "/data/cache-domains/${domain_file}")"
-    done <<<$(echo "${obj}" |jq -r '.domain_files[]')
+    done <<<"${Service_Domain_Files}"
    fi
   fi
- done <<<$(jq -c '.cache_domains[]' "/data/cache-domains/cache_domains.json")
+ done < <(jq -r '.cache_domains[] | "\(.name)\t\(.description)\t\(.domain_files | join("\t"))"' "/data/cache-domains/cache_domains.json")
 fi
 
 
