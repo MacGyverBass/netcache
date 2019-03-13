@@ -278,7 +278,7 @@ if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
 fi
 
 # UK-LANs Cache-Domain Lists
-if [ ! -z "${CACHE_DOMAINS_REPO}" ];then
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ]||[ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ ! -z "${CACHE_DOMAINS_REPO}" ];then
  if [ -d "/data/cache-domains/.git" ]&&[ "${CACHE_DOMAINS_REPO}" != "$(git -C "/data/cache-domains" remote get-url origin)" ];then
   echo_msg -n "* Repository URL has changed.  Clearing repo directory..."
   rm -rf "/data/cache-domains"
@@ -327,7 +327,7 @@ fi
 
 
 # Custom Domain Lists
-if [ ! -z "${CUSTOMCACHE}" ];then
+if [ "${DISABLE_DNS_SERVER,,}" != "true" ]||[ "${DISABLE_HTTP_CACHE,,}" != "true" ]&&[ ! -z "${CUSTOMCACHE}" ];then
  echo_msg "* Adding custom services..."
  for Service_Name in ${CUSTOMCACHE};do
   let ++intServices
