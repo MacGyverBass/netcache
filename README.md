@@ -332,6 +332,8 @@ Many environmental variables are used in this project and most are pre-defined w
   - This variable also supports service-specific assignment when provided with the service prefixed.  For example: `STEAMCACHE_DISK_SIZE` or `RIOTCACHE_DISK_SIZE`
 - `NO_COLORS` (Default: "`false`"): Disables colors in echo/logs on-screen.  (Logs are saved directly without any color formatting.)
 - `CLEAR_LOGS` (Default: "`false`"): Clears log files on startup of container.  This clears all log files upon startup of the container.  This can either be useful for debugging or for individuals that prefer their logs to be clean when starting up the container.
+- `DEFAULT_CACHE` (Default: "`_default_`"): Defines the folder path to use for the default fallback cache.  This should catch any unmatched domains going through nginx, such as the `cache_test.sh` script.  This may be changed as a personal preference or for debugging.
+- `TEST_DNS` (Default: "`dnsdiagnostic`"): Defines the zone name to use when testing the DNS.  When testing `dns.test` using the `dns_test.sh` script, it should resolve to this name.  This may be changed as a personal preference or for debugging.
 
 </details>
 
