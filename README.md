@@ -66,7 +66,7 @@ This runs the SNI Proxy on the same IP address as nginx.  Any HTTPS traffic will
 The quickest way to start up this Docker service is as follows:
 
 ```sh
-docker run -d --name netcache -e LANCACHE_IP="10.0.0.10" -p "10.0.0.10:53:53/udp" -p "10.0.0.10:80:80" -p "10.0.0.10:443:443" -v /netcache:/data macgyverbass/netcache:latest
+docker run -d --name netcache -e LANCACHE_IP="10.0.0.10" -p "10.0.0.10:53:53/udp" -p "10.0.0.10:53:53" -p "10.0.0.10:80:80" -p "10.0.0.10:443:443" -v /netcache:/data macgyverbass/netcache:latest
 ```
 
 Which can be re-written using variables to make it clearer and easier to update:
@@ -74,7 +74,7 @@ Which can be re-written using variables to make it clearer and easier to update:
 ```sh
 Container_Name="netcache"
 LAN_IP="10.0.0.10"
-docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data macgyverbass/netcache:latest
+docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:53:53" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data macgyverbass/netcache:latest
 ```
 
 The above commands runs netcache detached (in the background) on the host system IP address 192.168.0.100 for ports 53 (DNS), 80 (HTTP), and 443 (HTTPS), with cache/logs saved to `/netcache` on the host.  Please make sure no other services are using these ports on your machine for this to work.  If you are already running services on those ports, you can setup another IP address on your host system and use that new IP address in the example above.
@@ -141,7 +141,7 @@ Note that, like any Docker service, these values may either be provided in the c
 ```sh
 Container_Name="netcache"
 LAN_IP="10.0.0.10"
-docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data -e CUSTOMCACHE="MyCDN MyGameCDN MyBackupCDN" -e MYCDNCACHE="cdn.example.com" -e MYCDNCACHE_IP="10.0.0.21" -e MYGAMECDNCACHE="gamecdn.example.com" -e MYGAMECDNCACHE_IP="10.0.0.22" -e MYBACKUPCDNCACHE="backupcdn.example.com" -e MYBACKUPCDNCACHE_IP="10.0.0.23" macgyverbass/netcache:latest
+docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:53:53" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data -e CUSTOMCACHE="MyCDN MyGameCDN MyBackupCDN" -e MYCDNCACHE="cdn.example.com" -e MYCDNCACHE_IP="10.0.0.21" -e MYGAMECDNCACHE="gamecdn.example.com" -e MYGAMECDNCACHE_IP="10.0.0.22" -e MYBACKUPCDNCACHE="backupcdn.example.com" -e MYBACKUPCDNCACHE_IP="10.0.0.23" macgyverbass/netcache:latest
 ```
 
 You may also reference these environmental variables from a env file.
@@ -150,7 +150,7 @@ You may also reference these environmental variables from a env file.
 Container_Name="netcache"
 LAN_IP="10.0.0.10"
 # Command line to execute that loads "MySetup.env"
-docker run -d --name ${Container_Name} --env-file="MySetup.env" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data
+docker run -d --name ${Container_Name} --env-file="MySetup.env" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:53:53" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -v /netcache:/data
 ```
 
 ```conf
@@ -193,7 +193,7 @@ By default, the upstream DNS servers are set to Cloudflare's 1.1.1.1 (and 1.0.0.
 ```sh
 Container_Name="netcache"
 LAN_IP="10.0.0.10"
-docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -e UPSTREAM_DNS="8.8.8.8 8.8.4.4" macgyverbass/netcache:latest
+docker run -d --name ${Container_Name} -e LANCACHE_IP="${LAN_IP}" -p "${LAN_IP}:53:53/udp" -p "${LAN_IP}:53:53" -p "${LAN_IP}:80:80" -p "${LAN_IP}:443:443" -e UPSTREAM_DNS="8.8.8.8 8.8.4.4" macgyverbass/netcache:latest
 ```
 
 This will add a forwarder for all requests not served/cached by netcache to be sent to the upstream DNS server, in this case Google's DNS servers.  You may also point this to another DNS on your network, such as one that catches advertisement domain names or malicious domain names.  For example, if you have another DNS server running on `10.0.0.5`, your argument would be `-e UPSTREAM_DNS="10.0.0.5"`.
@@ -284,7 +284,7 @@ Also, you may want to run a separate HTTP cache & HTTPS proxy on a separate mach
 Container_Name="netcache-dns"
 ComputerA_IP="10.0.0.10"
 ComputerB_IP="10.0.0.11"
-docker run -d --name ${Container_Name} -e LANCACHE_IP="${ComputerB_IP}" -p "${ComputerA_IP}:53:53/udp" -v /netcache:/data -e DISABLE_HTTP_CACHE="true" -e DISABLE_HTTPS_PROXY="true" macgyverbass/netcache:latest
+docker run -d --name ${Container_Name} -e LANCACHE_IP="${ComputerB_IP}" -p "${ComputerA_IP}:53:53/udp" -p "${ComputerA_IP}:53:53" -v /netcache:/data -e DISABLE_HTTP_CACHE="true" -e DISABLE_HTTPS_PROXY="true" macgyverbass/netcache:latest
 
 # Computer B - Operating as just a HTTP cache & HTTPS proxy server on IP 10.0.0.11
 Container_Name="netcache-lancache"
@@ -299,7 +299,7 @@ A slightly more advanced example:
 Container_Name="netcache"
 ComputerA_IP="10.0.0.10"
 ComputerB_IP="10.0.0.11"
-docker run -d --name ${Container_Name} -e LANCACHE_IP="${ComputerA_IP}" -p "${ComputerA_IP}:53:53/udp" -p "${ComputerA_IP}:80:80" -p "${ComputerA_IP}:443:443" -v /netcache:/data -e STEAMCACHE_IP="${ComputerB_IP}" macgyverbass/netcache:latest
+docker run -d --name ${Container_Name} -e LANCACHE_IP="${ComputerA_IP}" -p "${ComputerA_IP}:53:53/udp" -p "${ComputerA_IP}:53:53" -p "${ComputerA_IP}:80:80" -p "${ComputerA_IP}:443:443" -v /netcache:/data -e STEAMCACHE_IP="${ComputerB_IP}" macgyverbass/netcache:latest
 # Note that STEAMCACHE_IP is provided above.
 # This means the above docker will cache everything except Steam content.
 
@@ -338,7 +338,7 @@ Many environmental variables are used in this project and most are pre-defined w
 ## Important Notes If You Run Into Problems
 
 - Environmental variable names provided MUST be in uppercase.  To simplify the script and prevent issues reading lower/upper/mixed-case variable names, a decision was made to make provided environmental variable names uppercase-only.  If you provide lowercase or mixed case variable names, it will not be read.  For example, `STEAMCACHE_IP` will work, but `SteamCache_IP` will not work.
-- Forwarding ports using `-p 53:53/udp -p 80:80 -p 443:443` will work, but if you have multiple IP addresses or adapters, this format will bind to all of them, which may not be the desired outcome.  If you have other services, like a webserver, running on another IP of the same device, it will conflict and prevent the docker from launching.  However, if you only have one IP for the device on one adapter, this may work for you.  Please take this into account when starting docker.
+- Forwarding ports using `-p 53:53/udp -p 53:53 -p 80:80 -p 443:443` will work, but if you have multiple IP addresses or adapters, this format will bind to all of them, which may not be the desired outcome.  If you have other services, like a webserver, running on another IP of the same device, it will conflict and prevent the docker from launching.  However, if you only have one IP for the device on one adapter, this may work for you.  Please take this into account when starting docker.
 - The `/data` volume does not require binding to a directory, but doing so will keep your cache persistent.  If you prefer to keep your cache persistent, but not the logs, you can bind just the cache directory using `-v /netcache:/data/cache` instead.  Note that the uklans/cache-domains repo is also stored in `/data`, thus to make it persistent separately, you may use `-v /cache-domains:/data/cache-domains` as well.  The examples in this document focus on binding the `/data` folder for simplicity.  Note that if you just prefer clean log files on each docker start, you can provide the `CLEAN_LOGS` variable mentioned in this document.
 - While most errors will be caught by the script when it starts up, if they are not a serious error, the script will not exit and thus the docker will be running, but not responding to DNS/HTTP/HTTPS requests.  Either use `docker run -it` instead of `docker run -d` to view the output when starting the image or `docker logs` to review the on-screen information and logs.
 - If you run into further problems starting the docker image itself, please review the examples above, check your variables you have provided, and review the [Docker Documentation - Run](https://docs.docker.com/engine/reference/run/) for more help.
