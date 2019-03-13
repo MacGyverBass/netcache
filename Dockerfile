@@ -21,10 +21,10 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	CUSTOMCACHE=""	\
 	LANCACHE_IP=""
 
-RUN	apk --no-cache add	\
+RUN	apk --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/v3.7/main add jq~=1.5	\
+	&& apk --no-cache add	\
 		bash	\
 		curl	\
-		jq	\
 		git	\
 		bind	\
 		nginx	\
