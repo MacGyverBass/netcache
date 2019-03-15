@@ -285,11 +285,12 @@ if [ "${DISABLE_DNS_SERVER,,}" != "true" ]||[ "${DISABLE_HTTP_CACHE,,}" != "true
   echo_msg "  Done." "info"
  fi
  if [ ! -d "/data/cache-domains/.git" ];then
-  echo_msg "* Cloning repository from ${CACHE_DOMAINS_REPO}"
-  git clone "${CACHE_DOMAINS_REPO}" "/data/cache-domains" # Download repo
+  echo_msg "* Cloning branch ${CACHE_DOMAINS_BRANCH} in repository from ${CACHE_DOMAINS_REPO}"
+  git clone -b "${CACHE_DOMAINS_BRANCH}" "${CACHE_DOMAINS_REPO}" "/data/cache-domains" # Download repo/branch
  else
-  echo_msg "* Updating repository from ${CACHE_DOMAINS_REPO}"
+  echo_msg "* Updating branch ${CACHE_DOMAINS_BRANCH} in repository from ${CACHE_DOMAINS_REPO}"
   git -C "/data/cache-domains" fetch # Update repo
+  git -C "/data/cache-domains" checkout "${CACHE_DOMAINS_BRANCH}" # Change to branch
   git -C "/data/cache-domains" reset --hard # Reset any files that were changed locally
   git -C "/data/cache-domains" clean -df # Remove any untracked files
   git -C "/data/cache-domains" merge # Merge files with remote repo
