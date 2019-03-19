@@ -2,6 +2,7 @@ FROM	alpine:latest
 LABEL	maintainer="Steven Bass"
 
 ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
+	CACHE_DOMAINS_BRANCH="master"	\
 	ENABLE_DNSSEC_VALIDATION="false"	\
 	NGINX_WORKER_PROCESSES="auto"	\
 	DISABLE_DNS_SERVER="false"	\
