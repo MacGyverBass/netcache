@@ -103,6 +103,7 @@ fi
 touch /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
 
 # Create empty 20_proxy_cache_path.conf file.
+rm -f /etc/nginx/conf.d/20_proxy_cache_path.conf
 touch /etc/nginx/conf.d/20_proxy_cache_path.conf
 
 
@@ -115,7 +116,7 @@ echo "${DNS_List}" |sed "s/^/nameserver /" > /etc/resolv.conf
 ## Setup nginx resolver.conf
 echo "  resolver ${DNS_String} ipv6=off;" > /etc/nginx/sites-available/conf.d/resolver.conf
 ## Setup /etc/sniproxy/sniproxy.conf
-sed -i "s/\${DNS_NAMESERVERS}/${DNS_String}/Ig" /etc/sniproxy/sniproxy.conf
+sed "s/\${DNS_NAMESERVERS}/${DNS_String}/Ig" /etc/sniproxy/sniproxy.conf.template > /etc/sniproxy/sniproxy.conf
 ## Setup /etc/bind/named.conf.options
 DNSSEC_Validation="no"
 if [ "${ENABLE_DNSSEC_VALIDATION,,}" == "true" ];then
@@ -125,7 +126,7 @@ elif [ "${ENABLE_DNSSEC_VALIDATION,,}" == "enforce" ];then
  echo_msg "* Enabling DNSSEC Validation (dnssec-validation=yes)"
  DNSSEC_Validation="yes"
 fi
-sed -i "s/\${DNS_NAMESERVERS}/${DNS_String// /;}/Ig;s/\${DNSSEC_VALIDATION}/${DNSSEC_Validation}/Ig" /etc/bind/named.conf.options
+sed "s/\${DNS_NAMESERVERS}/${DNS_String// /;}/Ig;s/\${DNSSEC_VALIDATION}/${DNSSEC_Validation}/Ig" /etc/bind/named.conf.options.template > /etc/bind/named.conf.options
 
 
 # Setup Bind
@@ -152,14 +153,17 @@ echo "};" >>  /etc/bind/named.conf.logging
 ## Setup /etc/nginx/workers.conf 
 echo "worker_processes ${NGINX_WORKER_PROCESSES};" > /etc/nginx/workers.conf
 ## Setup /etc/nginx/sites-available/root.d/20_cache.conf
-sed -i "s/\${CACHE_MAX_AGE}/${CACHE_MAX_AGE}/g" /etc/nginx/sites-available/root.d/20_cache.conf
+sed "s/\${CACHE_MAX_AGE}/${CACHE_MAX_AGE}/g" /etc/nginx/sites-available/root.d/20_cache.conf.template > /etc/nginx/sites-available/root.d/20_cache.conf
 ## Setup /etc/nginx/conf.d/30_maps.conf with default cache name
-sed -i "s/\${DEFAULT_CACHE}/${DEFAULT_CACHE}/g" /etc/nginx/conf.d/30_maps.conf
+sed "s/\${DEFAULT_CACHE}/${DEFAULT_CACHE}/g" /etc/nginx/conf.d/30_maps.conf.template > /etc/nginx/conf.d/30_maps.conf
+## Cleanup files from a container restart
+rm -f /etc/nginx/conf.d/maps.d/*.conf
 
 # Setup Bind RPZ Zone and Start of Authority Resource Record (SOA RR)
 SOA_Serial=`date +%Y%m%d%H` #yyyymmddHH (year,month,day,hour)
-sed -i "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig;s/\${SOA_Serial}/${SOA_Serial}/Ig" /etc/bind/cache/cache.db
-sed -i "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig" /etc/bind/cache.conf
+sed "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig;s/\${SOA_Serial}/${SOA_Serial}/Ig" /etc/bind/cache/cache.db.template > /etc/bind/cache/cache.db
+sed "s/\${RPZ_ZONE}/${RPZ_ZONE}/Ig" /etc/bind/cache.conf.template > /etc/bind/cache.conf
+cp /etc/bind/cache/rpz.db.template /etc/bind/cache/rpz.db
 
 
 ############################################################
