@@ -420,10 +420,6 @@ if [ "${DISABLE_HTTPS_PROXY,,}" != "true" ];then
 fi
 ## Nginx
 if [ "${DISABLE_HTTP_CACHE,,}" != "true" ];then
- # Check permissions on /data folder...
- echo_msg -n "* Checking permissions (This may take a long time if the permissions are incorrect on large caches)..."
- find /data/cache \! -user nginx -exec chown nginx:nginx '{}' +
- echo_msg "  Done." "info"
  # Test the nginx configuration...
  echo_msg "* Checking nginx configuration"
  if ! /usr/sbin/nginx -t -c /etc/nginx/nginx.conf ;then

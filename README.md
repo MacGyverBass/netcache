@@ -231,6 +231,29 @@ Additionally, you may want to test the speed of your cache versus a regular down
 
 The script `test.sh` is also included to test the DNS Server, HTTP Cache, and HTTPS Proxy all in sequence.  It will display success/failure message in addition to the individual test script output messages.  It gives an exit code of 0 (zero) upon success, and 1 (one) upon failure; this may later be used as part of the Docker Health-Check feature.
 
+## Repairing Ownership Permissions on the /data/cache Folder
+
+Originally, the /data/cache folder was checked each time the image started, however this is now omitted and provided as an external script.  This change was made as the execution of this permissions check would take a long time to complete, especially with a large amount of cached data, thus slowing down image startup.  In most setups, this check is not required if the mounted folder is never modified from an external source.
+
+If you want to verify/fix your cache folder, execute `check_permissions.sh` within the /scripts folder.  This script can either be ran after the image has started normally or the script can be ran directly without executing the rest of the image.
+
+To run the script after the image has started, use `docker exec` to run the script as shown below:
+
+```sh
+Container_Name="netcache"
+docker exec -it ${Container_Name} /scripts/check_permissions.sh
+```
+
+To run the script directly, you may run it as shown below:
+
+```sh
+docker run --rm -it -v /netcache:/data --entrypoint /scripts/check_permissions.sh macgyverbass/netcache:latest 
+```
+
+The above command bypasses the normal startup script and only runs the permissions check script.  This may be necessary if the permissions of your destination path have changed drastically.  In the example above, once the script completes, the docker instance will automatically stop and be removed.
+
+Note that under normal usage, this script should not be necessary to be ran.  Only external modifications to the /data/cache folder (such as editing files in your mounted folder from the host or another docker image) would possibly modify the ownership on these files.  If you never attempt to access/modify the files in your mounted folder, the ownership permissions should never be incorrect.  However, this script is still provided if you believe your mounted cache folder has incorrect permissions, as that will prevent this image from running correctly.
+
 ## Advice to Publishers
 
 If you are a games publisher and you like LAN parties, gaming centers and other places to be able to easily cache your game updates, we recommend the following:
