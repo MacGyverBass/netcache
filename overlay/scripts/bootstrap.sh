@@ -45,7 +45,7 @@ fnTailLog () { # fnTailLog "Prefix text" "File to log in background" [ "Regular 
  PrefixColor="\e[1m"
  ResetColor="\e[0m"
  if [ "${NO_COLORS,,}" == "true" ];then
-  tail -f "${LogFile}" |awk "{print \"${Prefix}: \" \$0}" &
+  tail -F -n0 "${LogFile}" |awk "{print \"${Prefix}: \" \$0}" &
  else
   AwkScript="gsub(/^/, \"${PrefixColor}${Prefix}: ${ResetColor}\");"
   while [ $# -ge 4 ];do # Check for a RegExp and String pair
@@ -54,7 +54,7 @@ fnTailLog () { # fnTailLog "Prefix text" "File to log in background" [ "Regular 
    AwkScript="${AwkScript} gsub(${RegExp},\"${Replacement}\");"
    shift 2 # Shift the arguments by two before checking for another pair.
   done
-  tail -f "${LogFile}" |awk "{${AwkScript} print}" &
+  tail -F -n0 "${LogFile}" |awk "{${AwkScript} print}" &
  fi
 }
 fnSplitStrings () { # Removes comments, splits into lines from comma/space delimited strings, and removes any blank lines.
