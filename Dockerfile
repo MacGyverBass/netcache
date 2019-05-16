@@ -37,7 +37,7 @@ RUN	mkdir -m 755 -p /data	\
 	&& rm /etc/nginx/conf.d/default.conf	\
 	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
 	&& chown named:named /var/cache/bind	\
-	&& chmod 755 /scripts/*
+	&& chmod 755 /scripts/*.sh
 
 EXPOSE	53/udp 53/tcp 80/tcp 443/tcp
 
