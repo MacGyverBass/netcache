@@ -64,6 +64,9 @@ trap 'fnTerminate' SIGINT  # CTRL+C
 trap 'fnTerminate' SIGTERM # docker stop
 
 ############################################################
+# Announce the version of Alpine we are using
+echo_msg "* Running on Alpine $(cat /etc/alpine-release)"
+
 # Start by verifying that UPSTREAM_DNS is provided.
 if [ -z "${UPSTREAM_DNS}" ];then
  echo_msg "# UPSTREAM_DNS environment variable is not set.  This is required to be set." "error"
