@@ -18,6 +18,9 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	CACHE_DISK_SIZE=""	\
 	NO_COLORS="false"	\
 	CLEAR_LOGS="false"	\
+	LOGROTATE_CPULIMIT="50"	\
+	LOGROTATE_INTERVAL="weekly"	\
+	LOGROTATE_COUNT="16"	\
 	ONLYCACHE=""	\
 	CUSTOMCACHE=""	\
 	LANCACHE_IP=""
@@ -29,7 +32,9 @@ RUN	apk --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/v3.7/main a
 		git	\
 		bind	\
 		nginx	\
-		sniproxy
+		sniproxy	\
+		cpulimit	\
+		logrotate
 
 COPY	overlay/ /
 
@@ -37,7 +42,8 @@ RUN	mkdir -m 755 -p /data	\
 	&& rm /etc/nginx/conf.d/default.conf	\
 	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
 	&& chown named:named /var/cache/bind	\
-	&& chmod 755 /scripts/*.sh
+	&& chmod 755 /scripts/*.sh	\
+	&& chmod 755 /etc/periodic/*/*
 
 EXPOSE	53/udp 53/tcp 80/tcp 443/tcp
 

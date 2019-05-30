@@ -1,0 +1,8 @@
+/data/logs/named/*.log {
+	create 644 named named
+	sharedscripts
+	postrotate
+		/usr/sbin/rndc reconfig > /dev/null 2>/dev/null || true
+	endscript
+}
+

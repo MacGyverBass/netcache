@@ -83,6 +83,17 @@ fi
 
 # Create nginx/sniproxy log files if they don't yet exist.
 touch /data/logs/{cache,cache_error,sniproxy,sniproxy_error}.log
+chown nginx:nginx /data/logs/{cache,cache_error}.log
+chown sniproxy:sniproxy /data/logs/{sniproxy,sniproxy_error}.log
+
+# Create configuration files for logrotate
+cat << EOF > /etc/logrotate.schedule.conf
+# rotate log files (daily/weekly/monthly/yearly)
+${LOGROTATE_INTERVAL}
+
+# number of backlogs to keep
+rotate ${LOGROTATE_COUNT}
+EOF
 
 # Create empty 20_proxy_cache_path.conf file.
 rm -f /etc/nginx/conf.d/20_proxy_cache_path.conf
@@ -118,7 +129,7 @@ echo "logging {" > /etc/bind/named.conf.logging
 for channel_type in ${Logging_Channels};do
  cat << SECTION >> /etc/bind/named.conf.logging
     channel ${channel_type}_file {
-        file "/data/logs/named/${channel_type}.log" versions 3 size 5m;
+        file "/data/logs/named/${channel_type}.log";
         severity dynamic;
         print-time yes;
     };
@@ -378,6 +389,10 @@ fi
 
 ############################################################
 # Startup programs
+echo_msg "* Launching processes..."
+## Cron
+echo_msg "* Running crond (for logrotate)" "info"
+crond -L /var/log/messages
 ## Bind
 if [ "${DISABLE_DNS_SERVER,,}" != "true" ];then
  # Test the Bind configuration

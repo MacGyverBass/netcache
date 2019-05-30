@@ -211,6 +211,30 @@ Container_Name="netcache"
 docker logs -f ${Container_Name}
 ```
 
+## Log Rotation
+
+Log files will be rotated on a weekly basis using logrotate.  This is executed automatically using crond with CPU usage limited to 50%.
+
+Note that if you are updating from a previous version of NetCache, some leftover Bind log files may still exist in `/data/logs/named/` and will not be automatically removed.  They can be identified by having a `.log.0` or `.log.1` or `.log.2` suffix and can be safely deleted, if you no longer need to review their contents.
+
+Rotated log files will be compressed and logrotate will keep up to 16 of these files before being automatically deleted.
+
+The above CPU limit and schedule can be modified by providing the following environmental variables:
+
+* LOGROTATE_CPULIMIT
+* LOGROTATE_INTERVAL
+* LOGROTATE_COUNT
+
+For example, to limit CPU usage to 25% and have the logs rotate monthly, keeping a backlog of 4 files, use the below environmental variables:
+
+```conf
+LOGROTATE_CPULIMIT="25"
+LOGROTATE_INTERVAL="monthly"
+LOGROTATE_COUNT="4"
+```
+
+Valid values for `LOGROTATE_CPULIMIT` are between 0 and 200.  Valid values for `LOGROTATE_INTERVAL` are "daily", "weekly", "montly", and "yearly".  `LOGROTATE_COUNT` should be 0 (zero) or higher.  If `LOGROTATE_COUNT` is 0, old versions are removed rather than rotated.
+
 ## Testing/Debugging
 
 There are three scripts included for testing bind DNS redirection, nginx HTTP caching and sniproxy HTTPS forwarding.  These are called `dns_test.sh`, `cache_test.sh` and `https_test.sh`.

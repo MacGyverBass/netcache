@@ -1,0 +1,6 @@
+/data/logs/sniproxy.log /data/logs/sniproxy_error.log {
+	create 644 sniproxy sniproxy
+	sharedscripts
+	copytruncate
+}
+

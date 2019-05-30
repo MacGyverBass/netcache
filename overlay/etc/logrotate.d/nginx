@@ -1,0 +1,8 @@
+/data/logs/cache.log /data/logs/cache_error.log {
+	create 644 nginx nginx
+	sharedscripts
+	postrotate
+		/usr/sbin/nginx -c /etc/nginx/nginx.conf -s reopen
+	endscript
+}
+
