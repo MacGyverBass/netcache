@@ -255,6 +255,8 @@ Additionally, you may want to test the speed of your cache versus a regular down
 
 The script `test.sh` is also included to test the DNS Server, HTTP Cache, and HTTPS Proxy all in sequence.  It will display success/failure message in addition to the individual test script output messages.  It gives an exit code of 0 (zero) upon success, and 1 (one) upon failure; this may later be used as part of the Docker Health-Check feature.
 
+The script `view_logs.sh` is included to tail the log files, in the same format as the main script.  This can be useful for quick debugging without pulling up the full logs of docker itself.
+
 ## Repairing Ownership Permissions on the /data/cache Folder
 
 Originally, the /data/cache folder was checked each time the image started, however this is now omitted and provided as an external script.  This change was made as the execution of this permissions check would take a long time to complete, especially with a large amount of cached data, thus slowing down image startup.  In most setups, this check is not required if the mounted folder is never modified from an external source.
