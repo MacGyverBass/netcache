@@ -1,5 +1,5 @@
-# Set base image for image.
-FROM	alpine:latest
+# Set base image for image. (Tested/Working on Alpine 3.11)
+FROM	alpine:3.11
 
 # Apply image labels
 LABEL	maintainer="Steven Bass"
