@@ -11,7 +11,7 @@ fi
 # Create temporary chroot directory for nslookup
 mkdir -p "/tmp/chroot_nslookup/bin"
 cp -p "$(which nslookup)" "/tmp/chroot_nslookup/bin"
-ldd "$(which nslookup)" |sed -n "s/^\t\(\/[^ ]*\) .*$/\1/p" |while read lib;do
+ldd "$(which nslookup)" |sed "1d;s/^\t//;s/^.* => //;s/ .*$//" |while read lib;do
  mkdir -p "/tmp/chroot_nslookup/$(dirname "${lib}")"
  cp -p "${lib}" "/tmp/chroot_nslookup${lib}"
 done
