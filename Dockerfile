@@ -1,5 +1,5 @@
-# Set base image for image. (Tested/Working on Alpine 3.11)
-FROM	alpine:3.11
+# Set base image for image. (Tested/Working on Alpine 3.12)
+FROM	alpine:3.12
 
 # Apply image labels
 LABEL	maintainer="Steven Bass"
@@ -30,11 +30,11 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	LANCACHE_IP=""
 
 # Install required packages.
-RUN	apk --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/v3.7/main add jq~=1.5	\
-	&& apk --no-cache add	\
+RUN	apk --no-cache add	\
 		bash	\
 		curl	\
 		git	\
+		jq	\
 		bind	\
 		nginx	\
 		sniproxy	\
