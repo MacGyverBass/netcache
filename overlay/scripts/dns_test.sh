@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
+############################################################
+# Load Functions From External File
+. /scripts/functions.sh
+
+############################################################
 # Check to see if the DNS server is enabled
 if [ "${DISABLE_DNS_SERVER,,}" == "true" ];then
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[33m";fi # 33=Yellow
-	echo "DISABLE_DNS_SERVER is set to true.  Nothing to test."
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
+	echo_msg "DISABLE_DNS_SERVER is set to true.  Nothing to test." "warning"
 	exit 0
 fi
 
@@ -18,14 +21,10 @@ done
 
 # Run nslookup in the chroot (thus ignoring the local /etc/resolv.conf file)
 if chroot "/tmp/chroot_nslookup" "/bin/nslookup" "dns.test" 2>/dev/null;then
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[32m";fi # 32=Green
-	echo "Successfully Redirected DNS Lookup"
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
+	echo_msg "Successfully Redirected DNS Lookup" "info"
 	exit 0
 else
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[31m";fi # 31=Red
-	echo "Error looking up test DNS entry."
-	if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal color text
+	echo_msg "Error looking up test DNS entry." "error"
 	exit -1
 fi
 
