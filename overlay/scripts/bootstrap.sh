@@ -19,7 +19,13 @@ if [ "${NO_COLORS,,}" != "true" ];then echo -en "\e[0m";fi # Return to normal co
 
 ############################################################
 # Announce the version of Alpine we are using
-echo_msg "* Running on Alpine $(cat /etc/alpine-release)"
+echo_msg "* Running on Alpine v$(cat /etc/alpine-release)"
+# Display nginx version
+echo_msg "* Using nginx v$(nginx -v 2>&1|sed "s/^.*nginx\///")"
+# Display sniproxy version
+echo_msg "* Using sniproxy v$(sniproxy -V |sed "s/^.*sniproxy //")"
+# Display bind version
+echo_msg "* Using bind/named v$(named -v |sed "s/^.*BIND //;s/ .*$//")"
 
 # Start by verifying that UPSTREAM_DNS is provided.
 if [ -z "${UPSTREAM_DNS}" ];then
