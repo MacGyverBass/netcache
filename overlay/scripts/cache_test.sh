@@ -11,19 +11,27 @@ if [ "${DISABLE_HTTP_CACHE,,}" == "true" ];then
 	exit 0
 fi
 
-CacheTest="curl http://www.lagado.com/tools/cache-test --silent --resolve www.lagado.com:80:127.0.0.1"
+TEST_HTTP_CACHE_DOMAIN="njrusmc.net"
+TEST_HTTP_CACHE_PATH="/cache/rand128k_public.test"
 
+TempLoad1="$(mktemp)"
+TempLoad2="$(mktemp)"
+CacheTest="curl http://${TEST_HTTP_CACHE_DOMAIN}${TEST_HTTP_CACHE_PATH} --silent --location --resolve ${TEST_HTTP_CACHE_DOMAIN}:80:127.0.0.1 --resolve ${TEST_HTTP_CACHE_DOMAIN}:443:127.0.0.1"
+
+echo "Using Test URL:  http://${TEST_HTTP_CACHE_DOMAIN}${TEST_HTTP_CACHE_PATH}"
 echo "Please wait..."
-if pageload1=`${CacheTest}` && sleep 5 && pageload2=`${CacheTest}`;then # Load page, wait 5 seconds, load page again.
-	if [ "${pageload1}" == "${pageload2}" ]; then # Check if pages match
+if `${CacheTest} --output ${TempLoad1}` && sleep 5 && `${CacheTest} --output ${TempLoad2}`;then # Load URL, wait 5 seconds, load URL again.
+	if diff -q "${TempLoad1}" "${TempLoad2}" >/dev/null; then # Check if pages match
 		echo_msg "Succesfully Cached" "info"
-		exit 0
+		ExitCode="0"
 	else # Pages did not match
 		echo_msg "Error caching test page, pages differed" "error"
-		exit -1
+		ExitCode="2"
 	fi
 else # Failed to load the pages
 	echo_msg "Error caching test page, make sure the HTTP cache is running" "error"
-	exit 1
+	ExitCode="1"
 fi
+rm ${TempLoad1} ${TempLoad2}
+exit ${ExitCode}
 
