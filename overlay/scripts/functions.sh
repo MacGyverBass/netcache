@@ -2,9 +2,10 @@
 set -e
 ############################################################
 #                                                          #
-# NetCache Entrypoint Script Functions                     #
+# NetCache Script Functions                                #
 #                                                          #
-# This file only has functions for the entrypoint script.  #
+# This file only contains functions used by the entrypoint #
+#  script and other scripts found in the /scripts/ folder. #
 #                                                          #
 ############################################################
 
