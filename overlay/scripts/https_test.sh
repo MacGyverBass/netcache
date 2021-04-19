@@ -11,9 +11,6 @@ if [ "${DISABLE_HTTPS_PROXY,,}" == "true" ];then
 	exit 0
 fi
 
-TEST_HTTPS_PROXY_DOMAIN="www.howsmyssl.com"
-TEST_HTTPS_PROXY_PATH="/a/check"
-
 echo "Using Test URL:  http://${TEST_HTTPS_PROXY_DOMAIN}${TEST_HTTPS_PROXY_PATH}"
 echo "Please wait..."
 

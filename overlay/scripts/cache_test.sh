@@ -11,9 +11,6 @@ if [ "${DISABLE_HTTP_CACHE,,}" == "true" ];then
 	exit 0
 fi
 
-TEST_HTTP_CACHE_DOMAIN="njrusmc.net"
-TEST_HTTP_CACHE_PATH="/cache/rand128k_public.test"
-
 TempLoad1="$(mktemp)"
 TempLoad2="$(mktemp)"
 CacheTest="curl http://${TEST_HTTP_CACHE_DOMAIN}${TEST_HTTP_CACHE_PATH} --silent --location --resolve ${TEST_HTTP_CACHE_DOMAIN}:80:127.0.0.1 --resolve ${TEST_HTTP_CACHE_DOMAIN}:443:127.0.0.1"
