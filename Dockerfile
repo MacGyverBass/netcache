@@ -70,3 +70,7 @@ WORKDIR	/scripts/
 # Set bootstrap.sh as the entrypoint.
 ENTRYPOINT	["/scripts/bootstrap.sh"]
 
+# Automatically perform a health check on the container by running test.sh, which runs DNS, HTTP cache, and HTTPS proxy tests.
+HEALTHCHECK	--interval=1h --timeout=5s --start-period=1m --retries=2	\
+	CMD	["/scripts/test.sh"]
+
