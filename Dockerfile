@@ -35,6 +35,7 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 
 # Install required packages.
 RUN	apk --no-cache add	\
+		tzdata	\
 		bash	\
 		curl	\
 		git	\
