@@ -1,5 +1,5 @@
-# Set base image for image. (Tested/Working on Alpine 3.12)
-FROM	alpine:3.12
+# Set base image for image. (Tested/Working on Alpine 3.13)
+FROM	alpine:3.13
 
 # Apply image labels
 LABEL	maintainer="Steven Bass"
@@ -46,7 +46,7 @@ COPY	overlay/ /
 
 # Create the necessary folders with the required permissions and cleanup default files.
 RUN	mkdir -m 755 -p /data	\
-	&& rm /etc/nginx/conf.d/default.conf	\
+	&& rm -f /etc/nginx/conf.d/default.conf	\
 	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
 	&& chown named:named /var/cache/bind	\
 	&& chmod 755 /scripts/*.sh	\
