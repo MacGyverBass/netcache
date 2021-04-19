@@ -11,7 +11,13 @@ if [ "${DISABLE_HTTPS_PROXY,,}" == "true" ];then
 	exit 0
 fi
 
-if curl -s https://www.howsmyssl.com/a/check --resolve www.howsmyssl.com:443:127.0.0.1 >/dev/null ;then
+TEST_HTTPS_PROXY_DOMAIN="www.howsmyssl.com"
+TEST_HTTPS_PROXY_PATH="/a/check"
+
+echo "Using Test URL:  http://${TEST_HTTPS_PROXY_DOMAIN}${TEST_HTTPS_PROXY_PATH}"
+echo "Please wait..."
+
+if curl -s https://${TEST_HTTPS_PROXY_DOMAIN}${TEST_HTTPS_PROXY_PATH} --location --resolve ${TEST_HTTPS_PROXY_DOMAIN}:80:127.0.0.1 --resolve ${TEST_HTTPS_PROXY_DOMAIN}:443:127.0.0.1 >/dev/null ;then
 	echo_msg "Succesfully Proxied" "info"
 	exit 0
 else
