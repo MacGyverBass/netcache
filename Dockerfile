@@ -1,8 +1,29 @@
-# Set base image for image. (Tested/Working on Alpine 3.13)
-FROM	alpine:3.13
+# Use Alpine as the base image.
+FROM	macgyverbass/base-label:alpine
 
-# Apply image labels
-LABEL	maintainer="Steven Bass"
+# Install required packages.
+RUN	apk --no-cache add	\
+		tzdata	\
+		bash	\
+		curl	\
+		git	\
+		jq	\
+		bind	\
+		nginx	\
+		sniproxy	\
+		cpulimit	\
+		logrotate
+
+# Copy the pre-made files into the image.
+COPY	overlay/ /
+
+# Create the necessary folders with the required permissions and cleanup default files.
+RUN	mkdir -m 755 -p /data	\
+	&& rm -f /etc/nginx/conf.d/default.conf	\
+	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
+	&& chown named:named /var/cache/bind	\
+	&& chmod 755 /scripts/*.sh	\
+	&& chmod 755 /etc/periodic/*/*
 
 # Set default environmental variables
 ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
@@ -33,30 +54,6 @@ ENV	CACHE_DOMAINS_REPO="https://github.com/uklans/cache-domains.git"	\
 	CUSTOMCACHE=""	\
 	LANCACHE_IP=""
 
-# Install required packages.
-RUN	apk --no-cache add	\
-		tzdata	\
-		bash	\
-		curl	\
-		git	\
-		jq	\
-		bind	\
-		nginx	\
-		sniproxy	\
-		cpulimit	\
-		logrotate
-
-# Copy the pre-made files into the image.
-COPY	overlay/ /
-
-# Create the necessary folders with the required permissions and cleanup default files.
-RUN	mkdir -m 755 -p /data	\
-	&& rm -f /etc/nginx/conf.d/default.conf	\
-	&& mkdir -p /var/cache/bind /etc/bind/cache /etc/nginx/conf.d/maps.d	\
-	&& chown named:named /var/cache/bind	\
-	&& chmod 755 /scripts/*.sh	\
-	&& chmod 755 /etc/periodic/*/*
-
 # Exposed ports:
 # Port 53 (DNS) is used by bind.
 # Port 80 (HTTP) is used by nginx.
@@ -65,10 +62,10 @@ EXPOSE	53/udp 53/tcp 80/tcp 443/tcp
 
 # This is the shared data folder, which will store the cache data, cache-domains lists, and logs.
 # It is recommended to mount this folder to the host machine so it does not get lost if the container is removed.
-VOLUME	["/data"]
+VOLUME	["/data/"]
 
 # Set the default working directory to the /scripts/ folder.
-WORKDIR	/scripts
+WORKDIR	/scripts/
 
 # Set bootstrap.sh as the entrypoint.
 ENTRYPOINT	["/scripts/bootstrap.sh"]
